@@ -1,0 +1,72 @@
+{
+    "name": "Enhanced SMS Conversation",
+
+    "namespace": "Stanford\\EnhancedSMSConversation",
+
+    "description": "This module mimics the built-in REDCap SMS survey conversation but adds more flexibility around reminders, expiration, and custom context based on event/instance.",
+
+    "documentation": "README.md",
+
+    "framework-version": 12,
+
+    "authors": [
+        {
+            "name": "Andrew Martin",
+            "email": "andy123@stanford.edu",
+            "institution": "Stanford"
+        },
+        {
+            "name": "Jae Lee",
+            "email": "jael@stanford.edu",
+            "institution": "Stanford"
+        }
+    ],
+
+    "permissions": [
+        "redcap_email"
+    ],
+
+    "enable-every-page-hooks-on-system-pages": false,
+    "links": {
+        "project": [
+            {
+                "name": "Enhanced SMS Conversation",
+                "icon": "fas fa-cog",
+                "url": "pages/detail.php"
+            }
+        ],
+        "control-center": [
+
+        ]
+    },
+
+    "no-auth-pages": [
+
+    ],
+
+    "project-settings": [
+
+    ],
+
+    "system-settings": [
+
+    ],
+
+    "crons": [
+        {
+            "cron_name": "enhanced_sms_conversation_cron",
+            "cron_description": "This cron evaluates open conversations for reminders, expiration, etc.",
+            "method": "scanConversationsCron",
+            "cron_frequency": "180",
+            "cron_max_run_time": "150"
+        }
+
+    ],
+
+    "compatibility": {
+        "php-version-min": "",
+        "php-version-max": "",
+        "redcap-version-min": "",
+        "redcap-version-max": ""
+    }
+}
