@@ -41,7 +41,7 @@
     },
 
     "no-auth-pages": [
-
+        "pages/inbound"
     ],
 
     "project-settings": [
