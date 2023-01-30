@@ -2,30 +2,22 @@
 
 namespace Stanford\EnhancedSMSConversation;
 
-class ConversationState
-{
-    /** @var EnhancedSMSConversation $module */
-    private $module;
+require_once "EmLogObject.php";
 
-    private $id;
-    private $project_id;
-    private $record;
-    private $instrument;
-    private $event_id;
-    private $instance;
-    private $number;
-    private $start_ts;
-    private $current_question;
-    private $reminder_ts;
-    private $expiry_ts;
-    private $state;
+class ConversationState extends EmLogObject
+{
+    // /** @var EnhancedSMSConversation $module */
+    // private $module;
+
+    // CONST VALID_OBJECT_PARAMETERS = ['foo','instrument', 'event_id', 'instance','number',
+    //     'start_ts','current_question','reminder_ts','expiry_ts','state'];
 
     /**
      * @return mixed
      */
     public function getStartTs()
     {
-        return $this->start_ts;
+        return $this->getValue('start_ts');
     }
 
     /**
@@ -33,16 +25,25 @@ class ConversationState
      */
     public function getState()
     {
-        return $this->state;
-    }             // active, closed, expired, completed
-
-
-    public function __construct($module) {
-        // Other code to run when object is instantiated
-        $this->module = $module;
-        $this->module->emDebug("Created!");
+        // active, closed, expired, completed
+        return $this->getValue('state');
     }
 
+    public static function buildConversationStateFromId($module, $id)
+    {
+        /** @var EnhancedSMSConversation $module */
+        return new ConversationState($module, __CLASS__, $id);
+    }
 
+    public static function getActiveConversationStateByNumber($module, $number) {
+        $framework = new \ExternalModules\Framework($module);
+        $sql = "select log_id where message=? and number=? and state=? order by timestamp desc";
+        $result = $framework->queryLogs($sql,[__CLASS__, $number, 'ACTIVE']);
+        // $sql = "select log_id from redcap_external_modules_log reml
+        //       join redcap_external_modules_log_parameters remlp on reml.log_id = remlp.log_id
+        //       where reml.message = ? and remlp.name='number' and remlp.number = ? and state = ? order by timestamp desc";
+        // ExternalModules::query()
+        return $result;
+    }
 
 }

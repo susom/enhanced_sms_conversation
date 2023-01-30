@@ -3,7 +3,7 @@ namespace Stanford\EnhancedSMSConversation;
 
 require_once "emLoggerTrait.php";
 require_once "vendor/autoload.php";
-
+require_once "classes/ConversationState.php";
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
@@ -14,7 +14,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     public function redcap_email( string $to, string $from, string $subject, string $message, $cc, $bcc, $fromName, $attachments ) {
         //todo: intercept ASI emails, get context, create session
+        return true;
     }
+
+
 
 
 
@@ -28,7 +31,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function parseInbound() {
 
-        $CS = ConversationState::findByPhone($phone);
+//        $CS = ConversationState::findByPhone($phone);
 
     }
 
