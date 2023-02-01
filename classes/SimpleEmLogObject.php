@@ -6,7 +6,7 @@ use \Exception;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
 
-abstract class EmLogObject
+class SimpleEmLogObject
 {
     /** @var EnhancedSMSConversation $module */
     public $module;
@@ -180,8 +180,9 @@ abstract class EmLogObject
             // We only update dirty parameters
             $this->dirty_parameters = array_unique($this->dirty_parameters);
 
-            // Upsert dirty parameters
+            // Loop through all parameters
             foreach ($this->object_parameters as $k => $v) {
+                // Only update dirty parameters
                 if (in_array($k, $this->dirty_parameters)) {
                     // Update/Insert parameter
                     if ($this->validateParameter($k, $v)) {
@@ -202,17 +203,24 @@ abstract class EmLogObject
                 }
             }
 
-            // Are there any dirty parameters remaining - if so, delete them
+            // To remove a parameter from an object, you setValue to null which makes it dirty but unsets it
+            // from the object.  Therefore, any parameters left as dirty should be deleted.
             foreach ($this->dirty_parameters as $name) {
-                // $this->module->emDebug("Dirty $name is till here!", $this->dirty_parameters);
-                // continue;
-                // Delete parameter
                 $sql = "delete from redcap_external_modules_log_parameters where log_id=? and name=? limit 1";
                 $result = $this->module->query($sql, [$this->log_id, $name]);
                 $this->module->emDebug("Deleted parameter $name for log id $this->log_id", $result);
             }
 
             if (!empty($this->dirty_columns)) {
+                foreach ($this->dirty_columns as $col) {
+                    if (in_array($col, self::UPDATABLE_COLUMNS)) {
+                        $sql = "update redcap_external_modules_log set " . $col . "=? where log_id=?";
+                        $result = $this->module->query($sql, [$this->$col, $this->log_id]);
+                        $this->module->emDebug("Updated $col to " . $this->$col);
+                    } else {
+                        $this->module->emError("You cannot update column $col on a previously saved object");
+                    }
+                }
                 // You cannot update these columns on an already saved log_id
                 $this->module->emError("You cannot update column values on an already saved object $this->log_id", $this->dirty_columns);
             }
@@ -279,5 +287,62 @@ abstract class EmLogObject
         }
         return true;
     }
+
+
+    # STATIC METHODS #
+
+    /**
+     * Get all of the matching log ids for the object
+     * @param $module
+     * @param $object_type
+     * @param $filter_clause
+     * @param $parameters
+     * @return array
+     * @throws Exception
+     */
+    public static function queryIds($module, $object_type, $filter_clause = "", $parameters = []) {
+        $framework = new \ExternalModules\Framework($module);
+
+        // Trim leading where if it exists
+        if (substr(trim(mb_strtolower($filter_clause)),0,5) === "where") {
+            $filter_clause = substr(trim($filter_clause),5);
+        }
+
+        $question_mark_count = count_chars($filter_clause)[ord("?")];
+        if (count($parameters) != $question_mark_count) {
+            throw Exception ("query filter must have parameter for each question mark");
+        }
+
+        // Add type filter
+        $sql = "select log_id where message = ?" . (empty($filter_clause) ? "" : " and " . $filter_clause);
+        $params = array_merge([$object_type], $parameters);
+        $module->emDebug($sql, $params);
+        $result = $framework->queryLogs($sql,$params);
+        $ids = [];
+        while ($row = $result->fetch_assoc()) {
+            $ids[] = $row['log_id'];
+        }
+        return $ids;
+    }
+
+    /**
+     * Return an array of objects instead of ids for the matching results
+     * @param $module
+     * @param $object_type
+     * @param $filter_clause
+     * @param $parameters
+     * @return array
+     * @throws Exception
+     */
+    public static function queryObjects($module, $object_type, $filter_clause = "", $parameters = []) {
+        $ids = self::queryIds($module,$object_type,$filter_clause,$parameters);
+        $results = [];
+        foreach ($ids as $id) {
+            $obj = new self($module, $object_type, $id);
+            $results[] = $obj;
+        }
+        return $results;
+    }
+
 
 }

@@ -52,11 +52,47 @@ if (false) {
 
 }
 
-if (true) {
+if (false) {
     $CS = new ConversationState($module, "CS");
     $CS->setValue("state", "ACTIVE");
     $CS->setValue("number", "16503803405");
     $CS->save();
 
     var_dump($CS);
+}
+
+if (true) {
+    // $CS = ConversationState::getObjectsByType($module, "CS");
+    // $ids = ConversationState::getObjectIdsByQuery($module, "CS");
+    // var_dump($ids);
+    //
+    // $objs = ConversationState::getObjectsByQuery($module, "CS");
+    // var_dump($objs);
+
+    // $ids = ConversationState::getObjectIdsByQuery($module,
+    //     "CS",
+    //     "number = ? and record = ? and timestamp > ?",
+    //     ["16503803405", 5, date("2023-01-27 16:34:46")]);
+    // var_dump($ids);
+    //
+
+    $ids = SimpleEmLogObject::queryIds($module,
+        "CS",
+        "number = ? and record = ? and timestamp > ?",
+        ["16503803405", 5, date("2023-01-27 16:34:46")]);
+
+    $id = current($ids);
+    $CS = new SimpleEmLogObject($module,"CS",$id);
+
+    var_dump($ids, $id, $CS);
+
+    $CS->setValue("record",null);
+
+    $CS->save();
+
+    var_dump($CS);
+
+
+
+    // var_dump($CS);
 }

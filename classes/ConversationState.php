@@ -2,15 +2,17 @@
 
 namespace Stanford\EnhancedSMSConversation;
 
-require_once "EmLogObject.php";
+require_once "SimpleEmLogObject.php";
 
-class ConversationState extends EmLogObject
+class ConversationState extends SimpleEmLogObject
 {
-    // /** @var EnhancedSMSConversation $module */
-    // private $module;
+    /** @var EnhancedSMSConversation $this->module */
 
     // CONST VALID_OBJECT_PARAMETERS = ['foo','instrument', 'event_id', 'instance','number',
     //     'start_ts','current_question','reminder_ts','expiry_ts','state'];
+
+    CONST OBJECT_NAME = 'ConversationState';
+
 
     /**
      * @return mixed
@@ -19,6 +21,7 @@ class ConversationState extends EmLogObject
     {
         return $this->getValue('start_ts');
     }
+
 
     /**
      * @return mixed
@@ -29,11 +32,6 @@ class ConversationState extends EmLogObject
         return $this->getValue('state');
     }
 
-    public static function buildConversationStateFromId($module, $id)
-    {
-        /** @var EnhancedSMSConversation $module */
-        return new ConversationState($module, __CLASS__, $id);
-    }
 
     public static function getActiveConversationStateByNumber($module, $number) {
         $framework = new \ExternalModules\Framework($module);
