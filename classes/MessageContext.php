@@ -65,9 +65,9 @@ class MessageContext {
             [type] => ->
             [args] => Array
                 (
-                    [0] => 11
-                    [1] => 53
-                    [2] => 21
+                    [0] => 11       // Survey ID
+                    [1] => 53       // Event ID
+                    [2] => 21       // Record
                 )
 
          */
@@ -181,62 +181,4 @@ class MessageContext {
             return null;
         }
     }
-
-
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getSource()
-    // {
-    //     return $this->source;
-    // }
-    //
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getSourceId()
-    // {
-    //     return strval($this->source_id);
-    // }
-    //
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getProjectId()
-    // {
-    //     return $this->project_id;
-    // }
-    //
-    // /**
-    //  * @return string
-    //  */
-    // public function getRecordId()
-    // {
-    //     return strval($this->record_id);
-    // }
-    //
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getEventId()
-    // {
-    //     return $this->event_id;
-    // }
-    //
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getInstance()
-    // {
-    //     return strval($this->instance);
-    // }
-    //
-    // /**
-    //  * @return mixed
-    //  */
-    // public function getEventName()
-    // {
-    //     return $this->event_name;
-    // }
-
 }

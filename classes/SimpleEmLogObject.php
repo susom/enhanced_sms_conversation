@@ -12,7 +12,7 @@ class SimpleEmLogObject
     public $module;
 
     private $log_id;
-    private $type;  // type of object (stored in the message column)
+    private $type;                      // type of object (stored in the message column)
     private $message;
     private $timestamp;
     private $ui_id;
@@ -26,6 +26,10 @@ class SimpleEmLogObject
     private $dirty_columns = [];        // This allows you to update UPDATABLE COLUMNS but isn't supported yet
 
     public $last_error;
+
+    const LOG_CHANGES_TYPE = 'SELO_CHANGE_LOG'; // This will be the 'message' attribute for change logs related to this object
+    const LOG_CHANGES = true;
+    public $change_log = [];
 
     const MAIN_COLUMNS = ['log_id', 'timestamp', 'ui_id','ip','project_id','record', 'message'];
     protected const UPDATABLE_COLUMNS = ['record', 'project_id', 'timestamp', 'message'];
@@ -42,7 +46,7 @@ class SimpleEmLogObject
         // Other code to run when object is instantiated
         $this->module = $module;
         $this->type = $type;
-        $this->module->emDebug("Constructor for $type!");
+        // $this->module->emDebug("Constructor for $type!");
 
         if($log_id) {
             // Try to get all available EAV parameter entries for log_id
@@ -170,8 +174,18 @@ class SimpleEmLogObject
 
 
     /**
+     * Get the log_id for the object
+     * @return mixed
+     */
+    public function getId() {
+        return $this->log_id;
+    }
+
+
+    /**
      * Save the object, only modifying the object_parameters
      * @return void
+     * @throws Exception
      */
     public function save() {
         if ($this->log_id) {
@@ -193,6 +207,7 @@ class SimpleEmLogObject
                         $this->module->emDebug($sql);
                         $this->module->query($sql, [$this->log_id, $k, $v, $v]);
 
+                        $this->logChange("Updated $k to $v");
                         // Remove from dirty parameters
                         $this->dirty_parameters = array_diff($this->dirty_parameters, [$k]);
                     } else {
@@ -208,6 +223,7 @@ class SimpleEmLogObject
             foreach ($this->dirty_parameters as $name) {
                 $sql = "delete from redcap_external_modules_log_parameters where log_id=? and name=? limit 1";
                 $result = $this->module->query($sql, [$this->log_id, $name]);
+                $this->logChange("Removed parameter $name");
                 $this->module->emDebug("Deleted parameter $name for log id $this->log_id", $result);
             }
 
@@ -217,6 +233,7 @@ class SimpleEmLogObject
                         $sql = "update redcap_external_modules_log set " . $col . "=? where log_id=?";
                         $result = $this->module->query($sql, [$this->$col, $this->log_id]);
                         $this->module->emDebug("Updated $col to " . $this->$col);
+                        $this->logChange("Updated $col to " . $this->$col);
                     } else {
                         $this->module->emError("You cannot update column $col on a previously saved object");
                     }
@@ -234,6 +251,8 @@ class SimpleEmLogObject
         // Clear object
         $this->dirty_parameters=[];
 
+        // Write to change logs
+        $this->saveChangeLog();
     }
 
 
@@ -246,6 +265,8 @@ class SimpleEmLogObject
         if ($this->log_id) {
             $result = $this->module->removeLogs("log_id = ?", [$this->log_id]);
             $this->module->emDebug("Removed log $this->log_id with result: " . json_encode($result));
+            $this->logChange("Deleted id " . $this->log_id);
+            $this->saveChangeLog();
             return true;
         } else {
             $this->module->emDebug("This object hasn't been saved.  Cannot delete.");
@@ -289,7 +310,53 @@ class SimpleEmLogObject
     }
 
 
-    # STATIC METHODS #
+
+
+    /**
+     * Log a change to the SEMLO
+     * @param $change
+     * @return void
+     */
+    private function logChange($change) {
+        $this->change_log[] = $change;
+    }
+
+
+    /**
+     * Save Change Log
+     * @return void
+     */
+    private function saveChangeLog() {
+        if (!empty($this->change_log) && static::LOG_CHANGES) {
+            $params = [
+                "parent_log_id" => $this->log_id,
+                "type" => $this->type,
+                "activity" => json_encode($this->change_log)
+            ];
+            $this->module->log(static::LOG_CHANGES_TYPE, $params);
+        }
+    }
+
+
+
+    #### STATIC METHODS ####
+
+    /**
+     * This method will purge the redcap_external_module_logs table of all of the change_event
+     * logs for this object that are older than the $age_in_days
+     * @param string $object_type  The type of object, e.g. "CS"
+     * @param integer $age_in_days
+     * @return void
+     */
+    public static function purgeChangeLogs($module, $object_type, $age_in_days = 30) {
+        $dt = new \DateTime();
+        $interval = new \DateInterval("P" . $age_in_days . "D");
+        $timestamp = $dt->sub($interval)->format("Y-m-d H:i:s");
+        $filter_clause = "timestamp < ? and type = ? and message = ?";
+        $module->removeLogs($filter_clause, [$timestamp, $object_type, static::LOG_CHANGES_TYPE]);
+        $module->emDebug("Change logs for objects of type $object_type older than $age_in_days were purged");
+    }
+
 
     /**
      * Get all of the matching log ids for the object
@@ -335,10 +402,10 @@ class SimpleEmLogObject
      * @throws Exception
      */
     public static function queryObjects($module, $object_type, $filter_clause = "", $parameters = []) {
-        $ids = self::queryIds($module,$object_type,$filter_clause,$parameters);
+        $ids = static::queryIds($module,$object_type,$filter_clause,$parameters);
         $results = [];
         foreach ($ids as $id) {
-            $obj = new self($module, $object_type, $id);
+            $obj = new static($module, $object_type, $id);
             $results[] = $obj;
         }
         return $results;

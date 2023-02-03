@@ -41,7 +41,55 @@
         "pages/inbound"
     ],
 
+    "no-csrf-pages": [
+        "pages/inbound"
+    ],
+
+    "enable-no-auth-logging": true,
+
     "project-settings": [
+        {
+            "key": "phone-field",
+            "name": "<b>Phone Field</b><br>Field containing the participants phone number validated as a phone number.",
+            "required": true,
+            "type": "field-list"
+        },
+        {
+            "key": "phone-field-event-id",
+            "name": "<b>Phone Field Event</b><br>If project is longitudinal, please select the event containing the phone field",
+            "required": false,
+            "type": "event-list"
+        },
+        {
+            "key": "twilio-number",
+            "name": "<b>Twilio Number</b><br>In E.164 format, e.g. +16508675309",
+            "required": true,
+            "type": "text"
+        },
+        {
+            "key": "twilio-sid",
+            "name": "<b>Twilio API SID</b>",
+            "required": true,
+            "type": "text"
+        },
+        {
+            "key": "twilio-token",
+            "name": "<b>Twilio API Token</b>",
+            "required": true,
+            "type": "password"
+        },
+        {
+            "key": "disable-outgoing-sms",
+            "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will not send twilio messages",
+            "required": true,
+            "type": "checkbox"
+        },
+        {
+            "key": "disable-incoming-sms",
+            "name": "<b>Disable Incoming Twilio SMS</b><br><i>(optional)</i> If checked, module will not process inbound twilio messages",
+            "required": true,
+            "type": "checkbox"
+        },
         {
             "key": "enable-project-debug-logging",
             "name": "<b>Enable Debug Logging</b><br><i>(optional)</i> Requires installation and configuration of emLogger",

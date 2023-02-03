@@ -6,10 +6,13 @@ namespace Stanford\EnhancedSMSConversation;
 // Replace this with your module code
 echo "Hello from $module->PREFIX";
 
+var_dump($module->getUrl("pages/inbound.php",true,true));
+
 // $CS = ConversationState::buildConversationStateFromId($module, 5);
 
 
 $c = 3;
+
 
 
 if (false) {
@@ -61,7 +64,7 @@ if (false) {
     var_dump($CS);
 }
 
-if (true) {
+if (false) {
     // $CS = ConversationState::getObjectsByType($module, "CS");
     // $ids = ConversationState::getObjectIdsByQuery($module, "CS");
     // var_dump($ids);
@@ -76,23 +79,61 @@ if (true) {
     // var_dump($ids);
     //
 
-    $ids = SimpleEmLogObject::queryIds($module,
-        "CS",
-        "number = ? and record = ? and timestamp > ?",
-        ["16503803405", 5, date("2023-01-27 16:34:46")]);
+    // $ids = SimpleEmLogObject::queryIds($module,
+    //     "CS",
+    //     "number = ? and record = ? and timestamp > ?",
+    //     ["16503803405", 5, date("2023-01-27 16:34:46")]);
+    //
+    // $id = current($ids);
+    // $CS = new SimpleEmLogObject($module,"CS",$id);
+    //
+    // var_dump($ids, $id, $CS);
+    // $CS->setValue("record",null);
+    // $CS->save();
+    // var_dump($CS);
 
-    $id = current($ids);
-    $CS = new SimpleEmLogObject($module,"CS",$id);
 
-    var_dump($ids, $id, $CS);
+    // $n = ConversationState::queryObjects($module,"CS","number=?", ["16503803405"]);
+    // foreach ($n as $o) {
+    //     $o->setValue("state","ACTIVE");
+    //     $o->save();
+    //     var_dump($o->getId(), $o->getValue('state'));
+    // }
 
-    $CS->setValue("record",null);
 
-    $CS->save();
 
-    var_dump($CS);
+    $o = ConversationState::getActiveConversationByNumber($module, "16503803405");
 
+    // var_dump($o);
+
+    $o->setValue('foo','bar3');
+    $o->save();
+    var_dump($o);
+
+
+    ConversationState::purgeChangeLogs($module,"CS",0);
+    echo "Purged";
 
 
     // var_dump($CS);
 }
+
+
+
+if (true) {
+    // Make a conversation
+    // $CS = new ConversationState($module);
+    // $CS->setValues([
+    //     'state' => 'ACTIVE',
+    //     'number' => '+16503803411',
+    //     'instrument' => 'survey_1'
+    // ]);
+    // $CS->save();
+    // var_dump($CS, $CS->getId());
+
+    var_dump($module->getRecordByNumber("+16503803405"));
+
+    // 'instrument', 'event_id', 'instance','number',
+    // 'start_ts','current_question','reminder_ts','expiry_ts','state'
+}
+
