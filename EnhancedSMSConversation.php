@@ -23,21 +23,60 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function validateConfiguration() {
         // TODO: validate phone number field is validated as phone
         // TODO: make sure phone field exists (in event if longitudial)
+        // Has designated email field
+
     }
 
 
-    public function redcap_email( string $to, string $from, string $subject, string $message, $cc, $bcc, $fromName, $attachments ) {
+    public function redcap_email($to, $from, $subject, $message, $cc, $bcc, $fromName, $attachments) {
         //todo: intercept ASI emails, get context, create session
-        $Context = new MessageContext($this);
-        $this->emDebug("Context array for email is: ", $Context->getContextAsArray());
-        // todo: if source is asi, then we want to decide if asi was for conversation, and if so go...
-        if (false) {
-            // This is an Enhanced SMS Survey
-            $params = [
-                // "instrument" => $Context->get
-            ];
 
-        }
+        // Exit if this is not an @ESMS email
+        //if (strpos($subject, "@ESMS") === false) return true;
+
+        $this->emDebug("This email is an ESMS email");
+        //xdebug_break();
+        $MC = new MessageContext($this);
+        $this->emDebug("Context array for email is: ", $MC->getContextAsArray(), PAGE);
+
+/*
+    // Immediate ASI works:
+    [source] => ASI
+    [source_id] => 177
+    [project_id] => 81
+    [record_id] => 17
+    [event_id] => 167
+    [instance] => 1
+    [event_name] => event_1_arm_1
+    [instrument] => survey_1
+    [survey_id] => 177
+
+    // immediate alert - instgrument isn't correct
+    [source] => Alert
+    [source_id] => 51
+    [project_id] => 81
+    [record_id] => 18
+    [event_id] => 167
+    [instance] => 1
+    [event_name] => event_1_arm_1
+    [instrument] => record_information
+    [survey_id] =>
+
+
+
+
+*/
+
+
+
+
+
+        //     // This is an Enhanced SMS Survey
+        //     $params = [
+        //         // "instrument" => $Context->get
+        //     ];
+        //
+        // }
         return true;
     }
 
@@ -59,6 +98,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 throw new \Exception("Missing required `From` number");
             }
             $record = $this->getRecordByNumber($from_number);
+
+            // TODO: Get opt-out-sms status for number
 
             // Check if there is an open conversation
             if ($cs = ConversationState::getActiveConversationByNumber($this, $from_number)) {
@@ -169,4 +210,68 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function scanConversationsCron( $cronParameters ) {
 
     }
+
+
+
+
+
+
+    /**
+     *
+     * Parses a string for arrays of actiontags (optinally filtering by the supplied tag)
+     *
+     * @param $string           The string to be parsed for actiontags (in the format of <code>@FOO=BAR or @FOO={"param":"bar"}</code>
+     * @param null $tag_only    If you wish to select a single tag
+     * @return array|bool       returns the match array with the key equal to the tag and an array containing keys of 'params, params_json and params_text'
+     */
+    function parseActionTags($string, $tag_only = null)
+    {
+        $re = "/  (?(DEFINE)
+     (?<number>    -? (?= [1-9]|0(?!\\d) ) \\d+ (\\.\\d+)? ([eE] [+-]? \\d+)? )
+     (?<boolean>   true | false | null )
+     (?<string>    \" ([^\"\\\\\\\\]* | \\\\\\\\ [\"\\\\\\\\bfnrt\\/] | \\\\\\\\ u [0-9a-f]{4} )* \" )
+     (?<array>     \\[  (?:  (?&json)  (?: , (?&json)  )*  )?  \\s* \\] )
+     (?<pair>      \\s* (?&string) \\s* : (?&json)  )
+     (?<object>    \\{  (?:  (?&pair)  (?: , (?&pair)  )*  )?  \\s* \\} )
+     (?<json>      \\s* (?: (?&number) | (?&boolean) | (?&string) | (?&array) | (?&object) )  ) \\s*
+     (?<tag>       \\@(?:[[:alnum:]])*)
+    )
+
+    (?'actiontag'
+    (?:\\@(?:[[:alnum:]_-])*)
+    )
+    (?:\\=
+    (?:
+     (?'params'
+      (
+       (?:(?'params_json'(?&json)))
+       |
+       (?:(?'params_text'(?:[[:alnum:]_-]+)))
+      )
+     )
+    )
+    )?/ixm";
+
+        preg_match_all($re, $string, $matches);
+
+        // Return false if none are found
+        if (count($matches['actiontag']) == 0) return false;
+
+        $result = array();
+
+        foreach ($matches['actiontag'] as $i => $tag) {
+            $tag = strtoupper($tag);
+            if ($tag_only && ($tag != strtoupper($tag_only))) continue;
+            $result[$tag] = array(
+                'params' => $matches['params'][$i],
+                'params_json' => $matches['params_json'][$i],
+                'params_text' => $matches['params_text'][$i]
+            );
+        }
+
+        return $result;
+    }
+
+
+
 }

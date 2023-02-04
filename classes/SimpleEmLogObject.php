@@ -310,8 +310,6 @@ class SimpleEmLogObject
     }
 
 
-
-
     /**
      * Log a change to the SEMLO
      * @param $change
@@ -336,7 +334,6 @@ class SimpleEmLogObject
             $this->module->log(static::LOG_CHANGES_TYPE, $params);
         }
     }
-
 
 
     #### STATIC METHODS ####

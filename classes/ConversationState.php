@@ -19,7 +19,7 @@ class ConversationState extends SimpleEmLogObject
         'start_ts','current_question','reminder_ts','expiry_ts','state'
     ];
 
-    CONST OBJECT_NAME = __CLASS__; //'ConversationState';   // This is the 'name' of the object and stored in the message column
+    CONST OBJECT_NAME = 'ConversationState';   // This is the 'name' of the object and stored in the message column
 
     CONST VALID_STATES = [
         'ACTIVE',
@@ -41,7 +41,6 @@ class ConversationState extends SimpleEmLogObject
         // TODO: get current question and verify response is valid
         //       if valid, save, continue - if invalid, repeat the question
         // TODO: update last_activity timestamp for conversation
-        //
 
         // Determine current
 

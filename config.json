@@ -47,6 +47,8 @@
 
     "enable-no-auth-logging": true,
 
+    "enable-email-hook-in-system-contexts":  true,
+
     "project-settings": [
         {
             "key": "phone-field",

@@ -13,6 +13,13 @@ var_dump($module->getUrl("pages/inbound.php",true,true));
 
 $c = 3;
 
+?>
+<style>
+    pre {
+        white-space: pre-wrap;       /* css-3 */
+    }
+</style>
+<?php
 
 
 if (false) {
@@ -136,4 +143,22 @@ if (true) {
     // 'instrument', 'event_id', 'instance','number',
     // 'start_ts','current_question','reminder_ts','expiry_ts','state'
 }
+if (false) {
+    $CS = new ConversationState($module);
+    $CS->setValues([
+        "day" => "light"
+    ]);
+    $CS->save();
+    var_dump($CS);
+}
+
+
+// $sql = "select log_id where timestamp > date_sub(now(), interval ? day) and ui_id = ?";
+//
+// $results = $module->queryLogs($sql,[1,2]);
+// $rows=[];
+// while ($row = db_fetch_assoc($results)) {
+//     $rows[] = $row;
+// }
+// var_dump($sql,$rows);
 
