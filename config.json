@@ -81,6 +81,12 @@
             "type": "password"
         },
         {
+            "key": "default-conversation-expiry-minutes",
+            "name": "<b>Expire Conversations</b><br><i>(optional)</i> If set to a value, conversations will expire after this number of minutes without a response.  The counter restarts after each participant response.",
+            "required": true,
+            "type": "checkbox"
+        },
+        {
             "key": "disable-outgoing-sms",
             "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will not send twilio messages",
             "required": true,
