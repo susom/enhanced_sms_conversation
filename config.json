@@ -7,7 +7,7 @@
 
     "documentation": "README.md",
 
-    "framework-version": 12,
+    "framework-version": 11,
 
     "authors": [
         {
@@ -20,6 +20,10 @@
             "email": "jael@stanford.edu",
             "institution": "Stanford"
         }
+    ],
+
+    "permissions": [
+        "redcap_email"
     ],
 
     "enable-every-page-hooks-on-system-pages": false,
@@ -81,10 +85,35 @@
             "type": "password"
         },
         {
+            "key": "welcome-message",
+            "name": "<b>Welcome Message</b><br>On Enrollment, these texts will be sent. Each entry will be sent as a different text.",
+            "required": false,
+            "repeatable": true,
+            "type": "text"
+        },
+        {
             "key": "default-conversation-expiry-minutes",
             "name": "<b>Expire Conversations</b><br><i>(optional)</i> If set to a value, conversations will expire after this number of minutes without a response.  The counter restarts after each participant response.",
+            "required": false,
+            "type": "text"
+        },
+        {
+            "key": "default-conversation-reminder-minutes",
+            "name": "<b>Reminder Text</b><br><i>(optional)</i> If set to a value, conversations will be sent a reminder after this number of minutes without a response.  The counter restarts after each participant response.",
+            "required": false,
+            "type": "text"
+        },
+        {
+            "key": "missing-text-warning",
+            "name": "<b>Missing Text Reminder</b><br>After the allowed reminder time has elapsed, this message will be included in the reminder message in this format. <br> <THIS MESSAGE><ORIGINAL TEXT><TEXTING INSTRUCTIONS>",
             "required": true,
-            "type": "checkbox"
+            "type": "text"
+        },
+        {
+            "key": "nonsense-text-warning",
+            "name": "<b>Nonsense Text Warning</b><br><br>Upon receipt of a text that does not match expected response, this message will be included in the warning message in this format. <br> <THIS MESSAGE><TEXTING INSTRUCTIONS>",
+            "required": true,
+            "type": "text"
         },
         {
             "key": "disable-outgoing-sms",
