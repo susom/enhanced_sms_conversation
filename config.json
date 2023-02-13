@@ -34,6 +34,11 @@
                 "name": "Enhanced SMS Conversation",
                 "icon": "fas fa-cog",
                 "url": "pages/detail.php"
+            },
+            {
+                "name": "Enhanced SMS Conversation: test",
+                "icon": "fas fa-cog",
+                "url": "test.php"
             }
         ],
         "control-center": [
