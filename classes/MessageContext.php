@@ -161,7 +161,7 @@ class MessageContext {
                 rssq.ssq_id as source_id,
                 rss.survey_id as survey_id,
                 rss.event_id as event_id,
-                rssq.instance as instance
+                rssq.instance as instance,
                 rssq.reminder_num,
                 rs.form_name as instrument
             from

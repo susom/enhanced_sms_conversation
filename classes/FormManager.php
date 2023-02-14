@@ -5,22 +5,26 @@ namespace Stanford\EnhancedSMSConversation;
 use REDCap;
 
 class FormManager {
-    /** @var EnhancedSMSConversation $module */
-    public $module;
 
+    /** @var EnhancedSMSConversation $module */
+    private $module;
     private $form;
-    private $event;
-    private $script;
+    private $event_id;
     private $project_id;
 
-    public function __construct($module, $form, $event) {
+    private $script;    // Parsed version of data dictionary
+
+    public function __construct($module, $form, $event_id, $project_id) {
         $this->module = $module;
         $this->form = $form;
-        $this->event= $event;
+        $this->event_id = $event_id;
+        $this->project_id=$project_id;
+
+        $this->loadForm();
     }
 
     /**
-     * Load Form given  form and event (passed in constructor)
+     * Load Form given form and event (passed in constructor)
      *
      * Returns an array of fields of that form.
      *
@@ -29,7 +33,6 @@ class FormManager {
      */
     public function loadForm() {
 
-        $this->project_id = $this->module->getProjectId();
         $dict = REDCap::getDataDictionary($this->project_id, "array");
 
         $new_script = array();
@@ -41,44 +44,48 @@ class FormManager {
             $field_label        = $field["field_label"];
             $choices            = $field["select_choices_or_calculations"];
             $branching_logic    = $field["branching_logic"];
-            $field_note         = json_decode($field["field_note"],1); //MUST BE JSON
-            $expected_digits    = property_exists("expected_digits", $field_note) ? $field_note["expected_digits"] : null;
-            $voicemail_opts     = property_exists("voicemail", $field_note) ? $field_note["voicemail"] : null;
 
-            if( $form_name == $this->form && !in_array("@ESC_IGNORE",$annotation_arr)){
-                //PROCESS PRESET CHOICES
-                $preset_choices = array();
-                if($field_type == "yesno" || $field_type  == "truefalse" || $field_type  == "radio" || $field_type == "dropdown"){
-                    if($field_type == "yesno"){
-                        $choices = "1,Yes | 0,No";
-                    }
-                    if($field_type == "truefalse"){
-                        $choices = "1,True | 0,False";
-                    }
+            // Skip if not this form
+            if ($form_name !== $this->form) continue;
 
-                    //THESE WILL HAVE PRESET # , Choice Values
-                    $choice_pairs   = explode("|",$choices);
-                    foreach($choice_pairs as $pair){
-                        $num_val = explode(",",$pair);
-                        $preset_choices[trim($num_val[0])] = trim($num_val[1]);
-                    }
+            // Skip if hidden-survey
+            if (in_array("@HIDDEN-SURVEY", $annotation_arr)) continue;
+
+            // Skip if ESC IGNORE
+            if (in_array($this->module::ACTION_TAG_IGNORE_FIELD, $annotation_arr)) continue;
+
+            // TODO: Left off here, need to validate that question is doable by SMS...
+
+            //PROCESS PRESET CHOICES
+            $preset_choices = array();
+            if($field_type == "yesno" || $field_type  == "truefalse" || $field_type  == "radio" || $field_type == "dropdown"){
+                if($field_type == "yesno"){
+                    $choices = "1,Yes | 0,No";
+                }
+                if($field_type == "truefalse"){
+                    $choices = "1,True | 0,False";
                 }
 
-                //SET UP INITIAL "next_step"  IF ANY KIND OF BRANCHING IS INVOLVED WONT BE RELIABLE
-                $new_script[$field_name]  = array(
-                    "field_name"        => $field_name,
-                    "field_type"        => $field_type,
-                    "field_label"       => $field_label,
-                    "preset_choices"    => $preset_choices,
-                    "expected_digits"   => $expected_digits,
-                    "branching_logic"   => $branching_logic,
-                    "annotation"        => $annotation
-                );
-
-                //TODO: why was this annotation needed. for which use case?
-                if(in_array("@ESC_LASTSTEP",$annotation_arr)){
-                    $new_script[$field_name]["laststep"] = true;
+                //THESE WILL HAVE PRESET # , Choice Values
+                $choice_pairs   = explode("|",$choices);
+                foreach($choice_pairs as $pair){
+                    $num_val = explode(",",$pair);
+                    $preset_choices[trim($num_val[0])] = trim($num_val[1]);
                 }
+            }
+
+            //SET UP INITIAL "next_step"  IF ANY KIND OF BRANCHING IS INVOLVED WONT BE RELIABLE
+            $new_script[$field_name]  = array(
+                "field_name"        => $field_name,
+                "field_type"        => $field_type,
+                "field_label"       => $field_label,
+                "preset_choices"    => $preset_choices,
+                "branching_logic"   => $branching_logic,
+            );
+
+            //TODO: why was this annotation needed. for which use case?
+            if(in_array("@ESC_LASTSTEP",$annotation_arr)){
+                $new_script[$field_name]["laststep"] = true;
             }
         }
 

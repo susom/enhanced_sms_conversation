@@ -10,13 +10,17 @@ class ConversationState extends SimpleEmLogObject
 
     /**
      * The object holds Conversation States in the EM
-     *
-     *
+     * EM LOG table already has: record, timestamp
      */
-
     CONST VALID_OBJECT_PARAMETERS = [
-        'instrument', 'event_id', 'instance','number',
-        'start_ts','current_question','reminder_ts','expiry_ts','state'
+        'instrument',
+        'event_id',
+        'instance',
+        'number',
+        'current_field',
+        'reminder_ts',  // each time participant responds, we re-set the reminder time
+        'expiry_ts',    // each time a participant responds, we re-calc the expiry time
+        'state',        // ACTIVE (created) -> EXPIRED / COMPLETE / ERROR?
     ];
 
     CONST OBJECT_NAME = 'ConversationState';   // This is the 'name' of the object and stored in the message column
@@ -33,6 +37,40 @@ class ConversationState extends SimpleEmLogObject
         parent::__construct($module, $type, $log_id, $limit_params);
     }
 
+    /** GETTERS */
+
+    public function getEventId() {
+        return $this->getValue('event_id');
+    }
+
+    public function getInstrument() {
+        return $this->getValue('instrument');
+    }
+
+    public function getCurrentField() {
+        return $this->getValue('current_field');
+    }
+
+    public function getNumber() {
+        return $this->getValue('number');
+    }
+
+
+    /** METADATA PARSING */
+
+
+
+
+
+
+    /**
+     * @return mixed
+     */
+    public function getState()
+    {
+        return $this->getValue('state');
+    }
+
 
     public function parseReply() {
         $body = $_POST['body'];
@@ -47,21 +85,6 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-    /**
-     * @return mixed
-     */
-    public function getStartTs()
-    {
-        return $this->getValue('start_ts');
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getState()
-    {
-        return $this->getValue('state');
-    }
 
 
     /**

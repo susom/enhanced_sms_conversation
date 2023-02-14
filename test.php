@@ -7,7 +7,13 @@ include_once 'classes/FormManager.php';
 
 use REDCap;
 echo "TESTING : Hello from $module->PREFIX";
-$module->emDebug("booya");
+
+$project_id = $module->getProjectId();
+
+$url = $module->getUrl('pages/inbound.php', true, true);
+echo "<br><br>This is the TRAM innbound link: <br>".$url;
+
+$module->emDebug("INBOUND: $url");
 
 
 $form = "thursday";
@@ -30,8 +36,8 @@ if (false) {
 }
 
 
-if (true) {
-    $fm = new FormManager($module, $form, $event);
+if (false) {
+    $fm = new FormManager($module, $form, $event, $project_id);
     $fm->loadForm();
 
     $all_steps = $fm->getCurrentFormStep('desd_ctrl', 1, 'week_1_sms_arm_1' );
@@ -64,12 +70,15 @@ if (false) {
     var_dump($cs);
 }
 
-if (false) {
-    $found_cs = ConversationState::getActiveConversationByNumber($module, "16505295666");
-    var_dump($found_cs);
-    $state= $found_cs->getValue('state');
-    $id = $found_cs->getId();
-    $module->emDebug("Found record ". $id);
+if (true) {
+    $my_num = $module->formatNumber('6505295666');
+    if ($found_cs = ConversationState::getActiveConversationByNumber($module, $my_num)) {
+
+        var_dump($found_cs);
+        $state = $found_cs->getValue('state');
+        $id = $found_cs->getId();
+        $module->emDebug("Found record " . $id);
+    }
     return;
     $event_id = $found_cs->getValue("event_id");
     $current_question = $found_cs->getValue("current_question");

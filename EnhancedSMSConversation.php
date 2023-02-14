@@ -12,7 +12,11 @@ use \Twilio\TwiML\MessagingResponse;
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
+
     const NUMBER_PREFIX = "NUMBER:";
+
+    const ACTION_TAG_PREFIX = "@ESC";
+    const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
 
     public function __construct() {
         parent::__construct();
@@ -24,6 +28,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // TODO: validate phone number field is validated as phone
         // TODO: make sure phone field exists (in event if longitudial)
         // Has designated email field
+        // TODO: make sure opt-out field exists and is of type text
+        // TODO: make sure withdraw field exists in event
 
     }
 
@@ -63,6 +69,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     [survey_id] =>
 
 
+1. get record-id + event + survey_id
+2. get surveystate in REDCap = getSurveyCompletionTimestamp ( survey_id, record, instance)
+3. if surveyy not complete
+4. Check withdrawn status - if true, then skip making CS and log why
+5.
+
+
 
 
 */
@@ -79,6 +92,34 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // }
         return true;
     }
+
+    /**
+     *
+     *
+     * @param int $survey_id
+     * @param string $record
+     * @param int $instance
+     * @return string | false
+     */
+    public function getSurveyCompletionTimestamp($survey_id, $record, $instance) {
+        //TODO: Complete!
+        // return
+    }
+
+    public function isOptedOut($record) {
+        // TODO:
+    }
+
+
+    public function isWithdrawn($record) {
+        // TODO:
+
+    }
+
+    public function getRecordPhoneNumber($record_id) {
+        // TODO:
+    }
+
 
     public function processInboundMessage() {
         // TODO: Validate message as Twilio

@@ -121,6 +121,36 @@
             "type": "text"
         },
         {
+            "key": "sms-opt-out-field",
+            "name": "<b>SMS Opt Out field</b><br>This text field will store whether or not a user as opted out of SMS communication by replying with 'STOP' or 'OPT-OUT'<br>If someone has opted out, when we try to deliver a message we get an error code and will save the date/time this occurred to this field.  If the field has any value, messages will NOT be sent to the number.",
+            "required": true,
+            "type": "field-list"
+        },
+        {
+            "key": "sms-out-out-field-event-id",
+            "name": "<b>SMS Opt Out field Event ID</b><br>If project is longitudinal, please select the event containing the SMS Opt Out field",
+            "required": false,
+            "type": "event-list"
+        },
+        {
+            "key": "study-withdrawn-field",
+            "name": "<b>Study Withdrawn Field</b><br>Field contains the withdrawn status at the study level. Stopping SMS does not necessarily withdraw person from study.",
+            "required": true,
+            "type": "field-list"
+        },
+        {
+            "key": "study-withdrawn-field-event-id",
+            "name": "<b>Withdrawn field Event ID</b><br>If project is longitudinal, please select the event containing the phone field",
+            "required": false,
+            "type": "event-list"
+        },
+        {
+            "key": "phone-field-event-id",
+            "name": "<b>Phone Field Event</b><br>If project is longitudinal, please select the event containing the phone field",
+            "required": false,
+            "type": "event-list"
+        },
+        {
             "key": "disable-outgoing-sms",
             "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will not send twilio messages",
             "required": true,
