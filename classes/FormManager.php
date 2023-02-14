@@ -45,8 +45,6 @@ class FormManager {
             $field_label        = $field["field_label"];
             $choices            = $field["select_choices_or_calculations"];
             $branching_logic    = $field["branching_logic"];
-            $field_note         = json_decode($field["field_note"],1); //MUST BE JSON
-
 
             // Skip if not this form
             if ($form_name !== $this->form) continue;
@@ -84,7 +82,6 @@ class FormManager {
                 "field_label"       => $field_label,
                 "preset_choices"    => $preset_choices,
                 "branching_logic"   => $branching_logic,
-                "annotation"        => $annotation
             );
 
             //TODO: why was this annotation needed. for which use case?

@@ -1,9 +1,5 @@
 {
-    "name": "twilio/sdk",
-    "autoload": {
-        "psr-4": {
-            "Twilio\\Sdk\\": "src/"
-        }
-    },
-    "require": {}
+    "require": {
+        "twilio/sdk": "^6.44"
+    }
 }
