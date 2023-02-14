@@ -145,12 +145,6 @@
             "type": "event-list"
         },
         {
-            "key": "phone-field-event-id",
-            "name": "<b>Phone Field Event</b><br>If project is longitudinal, please select the event containing the phone field",
-            "required": false,
-            "type": "event-list"
-        },
-        {
             "key": "disable-outgoing-sms",
             "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will not send twilio messages",
             "required": true,

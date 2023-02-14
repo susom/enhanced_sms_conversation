@@ -2,6 +2,7 @@
 
 namespace Stanford\EnhancedSMSConversation;
 
+use PhpParser\Node\Scalar\String_;
 use REDCap;
 
 class FormManager {
@@ -31,7 +32,7 @@ class FormManager {
      * @return array
      * @throws \Exception
      */
-    public function loadForm() {
+    private function loadForm() {
 
         $dict = REDCap::getDataDictionary($this->project_id, "array");
 
@@ -95,14 +96,42 @@ class FormManager {
         return $new_script;
     }
 
+    /**
+     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
+     * this method will return the next series of metadata ready to be sent as SMS
+     * Any descriptive fields preceding it and then the next valid question will be returned.
+     *
+     * @param $current_question String
+     * @param $record_id
+     * @param $event_id
+     * @return void
+     */
+    public function getNextSMS($current_question, $record_id, $event_id) {
+        //if $current_question is blank, send the first sms applicable for this record in this event_id
+
+//        if ($current_question == '') {
+//            $script = $this->script;
+//            $current_question = key($script);
+//        } else {
+            $next_step_metadata = $this->getNextStepInScript($current_question);
+            $next_step = $next_step_metadata['field_name'];
+//        }
+
+        return $this->getCurrentFormStep($next_step, $record_id, $event_id);
+    }
 
     /**
      * Gets the next sendable fields for this record in this event for the form loaded for this form manager
+     * We need this for the reminder scenario where the current question needs to be resent.
+     * For the reminder scenario, we need to only send the last field (do not send the descriptive fields)
+     *
      * Fields can be excluded from this list by adding ACTION TAG : @ESC_IGNORE
      *
-     * Returns an array of sendable texts for this record, in this event in this form.
+     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
+     * this method will return the current series of metadata fields to be sent as SMS
+     * Any descriptive fields preceding it and then the next valid question will be returned.
      *
-     * @param $current_question
+     * @param $current_question String
      * @param $record_id
      * @param $event_id
      * @return mixed
@@ -183,14 +212,22 @@ class FormManager {
 
     /**
      * Helper method to retrieve the next field in the given form.
+     *
+     * Returns array of metadata if found
      * Returns false if there is no more field to be returned.
      *
      * @param $key
      * @return false|mixed
      */
-    public function getNextStepInScript($key) {
+    private function getNextStepInScript($key) {
         $script = $this->script;
+
+        if ($key == '') {
+            return reset($script);
+        }
+
         $currentKey = key($script);
+
         while ($currentKey !== null && $currentKey != $key) {
             next($script);
             $currentKey = key($script);
