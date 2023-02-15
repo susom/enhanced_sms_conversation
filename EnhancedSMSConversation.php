@@ -136,17 +136,56 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     }
 
     /**
-     *
+     * Get the completion timestamp if it exists
      *
      * @param int $survey_id
      * @param string $record
      * @param int $instance
      * @return string | false
      */
-    public function getSurveyCompletionTimestamp($survey_id, $record, $instance) {
-        //TODO: Complete!
-        // return
+    public function getSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+        //TODO: TEST
+        $sql = "select rsr.completion_time
+            from redcap_surveys_response rsr
+            join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
+            where   rsp.survey_id = ?
+                and rsp.event_id = ?
+                and rsr.record = ?
+                and rsr.instance = ?";
+        $instance = is_null($instance) ? 1 : $instance;
+        $q = $this->query($sql, [$survey_id, $event_id, $record, $instance]);
+        if ($row = $q->fetch_assoc()) {
+            $this->emDebug($row);
+            $result = $row['completion_time'] ?? false;
+        } else {
+            $result = false;
+        }
+        return $result;
     }
+
+
+    /**
+     * Get the completion timestamp to now()
+     *
+     * @param int $survey_id
+     * @param string $record
+     * @param int $instance
+     * @return string | false
+     */
+    public function setSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+        //TODO: TEST
+        $sql = "update redcap_surveys_response rsr
+            set rsr.completion_time = NOW()
+            join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
+            where   rsp.survey_id = ?
+                and rsp.event_id = ?
+                and rsr.record = ?
+                and rsr.instance = ?";
+        $instance = is_null($instance) ? 1 : $instance;
+        $q = $this->query($sql, [$survey_id, $event_id, $record, $instance]);
+        $this->emDebug($q);
+    }
+
 
     public function isOptedOut($record_id) {
         // TODO:
