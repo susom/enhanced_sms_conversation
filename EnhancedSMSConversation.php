@@ -5,6 +5,7 @@ require_once "emLoggerTrait.php";
 require_once "vendor/autoload.php";
 require_once "classes/ConversationState.php";
 require_once "classes/MessageContext.php";
+require_once "classes/FormManager.php";
 
 use \REDCap;
 use \Twilio\TwiML\MessagingResponse;
@@ -33,12 +34,28 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     }
 
-
+    /**
+     * Hijacking redcap_email hook to send texts rather than the project's ASI.
+     * Convention is to add @ESMS to the subject line that this is to be hijacked.
+     *
+     * Any entry by this method signals a new state. Existing state should be cleared.
+     *
+     * @param $to
+     * @param $from
+     * @param $subject
+     * @param $message
+     * @param $cc
+     * @param $bcc
+     * @param $fromName
+     * @param $attachments
+     * @return true
+     * @throws \Exception
+     */
     public function redcap_email($to, $from, $subject, $message, $cc, $bcc, $fromName, $attachments) {
         //todo: intercept ASI emails, get context, create session
 
         // Exit if this is not an @ESMS email
-        //if (strpos($subject, "@ESMS") === false) return true;
+        if (strpos($subject, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
         //xdebug_break();
@@ -67,22 +84,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     [event_name] => event_1_arm_1
     [instrument] => record_information
     [survey_id] =>
-
-
-1. get record-id + event + survey_id
-2. get surveystate in REDCap = getSurveyCompletionTimestamp ( survey_id, record, instance)
-3. if surveyy not complete
-4. Check withdrawn status - if true, then skip making CS and log why
-5.
-
-
-
-
 */
-
-
-
-
 
         //     // This is an Enhanced SMS Survey
         //     $params = [
@@ -90,6 +92,46 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         //     ];
         //
         // }
+
+
+//1. get record-id + event + survey_id
+        $mc_context = $MC->getContextAsArray();
+        $record_id =  $mc_context['record_id'];
+        $event_id  =  $mc_context['event_id'];
+        $instrument  =  $mc_context['instrument'];
+        $survey_id =  $mc_context['survey_id'];
+
+        try {
+//2. get the withdrawn status of this record_id
+            $study_withdrawn = $this->isWithdrawn($record_id);
+
+//3. get the SMS optout status of this record_id
+            $sms_opt_out = $this->isOptedOut($record_id);
+
+//4. get the telephone number by record_id
+            $cell_number = $this->getRecordPhoneNumber($record_id);
+        } catch (ConfigSetupException $cse) {
+            REDCap::logEvent("EM Config not setup. Check with admin.");
+        }
+
+        //they have opted out of SMS, do nothing
+        if ($sms_opt_out OR $study_withdrawn) {
+            return true;
+        }
+
+//5. Clear out any existing states for this record in the state table
+//   If it comes through the email, then we should start from blank state.
+//TODO:
+
+//6. get the first sms to send
+        $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
+        $sms_to_send_list = $fm->getNextSMS('', $record_id, $mc_context['event_name']);
+
+//6. SEND SMS
+//TODO:
+
+
+
         return true;
     }
 
@@ -106,18 +148,54 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // return
     }
 
-    public function isOptedOut($record) {
+    public function isOptedOut($record_id) {
         // TODO:
+        $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id' );
+
+        $this->emDebug("Query for SMS opt out: ",$sms_opt_out);
+        $return = $sms_opt_out["1"];
+        return $return;
     }
 
 
-    public function isWithdrawn($record) {
-        // TODO:
+    public function isWithdrawn($record_id) {
+        $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id' );
 
+        $this->emDebug("Query for withdrawn: ", $withdrawn);
+        $return = $withdrawn["1"];
+        return $return;
     }
 
     public function getRecordPhoneNumber($record_id) {
-        // TODO:
+        $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id' );
+
+        $this->emDebug("Query for number: $number");
+        if ($number) {
+            $number = $this->formatNumber($number);
+        }
+
+        return $number;
+    }
+
+    private function getFieldData($record_id, $this_field_config, $this_field_event_id_config) {
+        $this_field = $this->getProjectSetting($this_field_config);
+        $this_field_event_id = $this->getProjectSetting($this_field_event_id_config);
+        $fields = [REDCap::getRecordIdField(), $this_field];
+
+        if (empty($this_field) && empty($this_field_event_id)) {
+            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
+        }
+
+        $params = [
+            'return_format' => 'array',
+            'events'        => $this_field_event_id,
+            'fields'        => $fields,
+            'records'       => array($record_id)
+        ];
+        $results = REDCap::getData($params);
+        $return_field = $results[$record_id][$this_field_event_id][$this_field];
+
+        return $return_field;
     }
 
 
