@@ -94,27 +94,27 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // }
 
 
-//1. get record-id + event + survey_id
+        // 1. get record-id + event + survey_id
         $mc_context = $MC->getContextAsArray();
-        $record_id =  $mc_context['record_id'];
-        $event_id  =  $mc_context['event_id'];
-        $instrument  =  $mc_context['instrument'];
-        $survey_id =  $mc_context['survey_id'];
+        $record_id  =  $mc_context['record_id'];
+        $event_id   =  $mc_context['event_id'];
+        $instrument =  $mc_context['instrument'];
+        $survey_id  =  $mc_context['survey_id'];
 
         try {
-//2. get the withdrawn status of this record_id
+            // 2. get the withdrawn status of this record_id
             $study_withdrawn = $this->isWithdrawn($record_id);
 
-//3. get the SMS optout status of this record_id
+            // 3. get the SMS optout status of this record_id
             $sms_opt_out = $this->isOptedOut($record_id);
 
-//4. get the telephone number by record_id
+            // 4. get the telephone number by record_id
             $cell_number = $this->getRecordPhoneNumber($record_id);
         } catch (ConfigSetupException $cse) {
             REDCap::logEvent("EM Config not setup. Check with admin.");
         }
 
-        //they have opted out of SMS, do nothing
+        // they have opted out of SMS, do nothing
         if ($sms_opt_out OR $study_withdrawn) {
             return true;
         }
@@ -170,7 +170,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param int $survey_id
      * @param string $record
      * @param int $instance
-     * @return string | false
+     * @return void
      */
     public function setSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
         //TODO: TEST
@@ -216,6 +216,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         return $number;
     }
 
+
+    /**
+     * @param $record_id
+     * @param $this_field_config
+     * @param $this_field_event_id_config
+     * @return mixed
+     * @throws ConfigSetupException
+     */
     private function getFieldData($record_id, $this_field_config, $this_field_event_id_config) {
         $this_field = $this->getProjectSetting($this_field_config);
         $this_field_event_id = $this->getProjectSetting($this_field_event_id_config);
