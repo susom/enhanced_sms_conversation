@@ -72,8 +72,8 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-    public function parseReply() {
-        $body = $_POST['body'];
+    public function parseReply($record, $body) {
+        //$body = $_POST['body'];
 
         // TODO: Check for expiration
         // TODO: get current question and verify response is valid
