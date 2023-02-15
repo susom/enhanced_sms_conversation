@@ -19,6 +19,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     const ACTION_TAG_PREFIX = "@ESC";
     const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
 
+    const VALID_SURVEY_TIMESTAMP_STAGES = ['completion_time','start_time', 'first_submit_time'];
+
     public function __construct() {
         parent::__construct();
         // Other code to run when object is instantiated
@@ -58,81 +60,106 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         if (strpos($subject, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
-        //xdebug_break();
         $MC = new MessageContext($this);
         $this->emDebug("Context array for email is: ", $MC->getContextAsArray(), PAGE);
 
-/*
-    // Immediate ASI works:
-    [source] => ASI
-    [source_id] => 177
-    [project_id] => 81
-    [record_id] => 17
-    [event_id] => 167
-    [instance] => 1
-    [event_name] => event_1_arm_1
-    [instrument] => survey_1
-    [survey_id] => 177
+        /*
+            // Immediate ASI works:
+            [source] => ASI
+            [source_id] => 177
+            [project_id] => 81
+            [record_id] => 17
+            [event_id] => 167
+            [instance] => 1
+            [event_name] => event_1_arm_1
+            [instrument] => survey_1
+            [survey_id] => 177
 
-    // immediate alert - instgrument isn't correct
-    [source] => Alert
-    [source_id] => 51
-    [project_id] => 81
-    [record_id] => 18
-    [event_id] => 167
-    [instance] => 1
-    [event_name] => event_1_arm_1
-    [instrument] => record_information
-    [survey_id] =>
-*/
-
-        //     // This is an Enhanced SMS Survey
-        //     $params = [
-        //         // "instrument" => $Context->get
-        //     ];
-        //
-        // }
-
+            // immediate alert - instgrument isn't correct
+            [source] => Alert
+            [source_id] => 51
+            [project_id] => 81
+            [record_id] => 18
+            [event_id] => 167
+            [instance] => 1
+            [event_name] => event_1_arm_1
+            [instrument] => record_information
+            [survey_id] =>
+        */
 
         // 1. get record-id + event + survey_id
         $mc_context = $MC->getContextAsArray();
-        $record_id  =  $mc_context['record_id'];
-        $event_id   =  $mc_context['event_id'];
-        $instrument =  $mc_context['instrument'];
-        $survey_id  =  $mc_context['survey_id'];
+        $project_id = $mc_context['project_id'];
+        $record_id  = $mc_context['record_id'];
+        $event_id   = $mc_context['event_id'];
+        $instrument = $mc_context['instrument'];
+        $survey_id  = $mc_context['survey_id'];
 
         try {
+            $errors = [];
+
             // 2. get the withdrawn status of this record_id
-            $study_withdrawn = $this->isWithdrawn($record_id);
+            if ($this->isWithdrawn($record_id, $project_id)) {
+                // Do not create a new CS
+                $errors[] = "New conversation for record $record_id aborted because record is withdrawn";
+            }
 
             // 3. get the SMS optout status of this record_id
-            $sms_opt_out = $this->isOptedOut($record_id);
+            if ($this->isOptedOut($record_id, $project_id)) {
+                // Do not create a new CS
+                $errors[] = "New conversation for record $record_id aborted because record is opted out";
+            }
 
             // 4. get the telephone number by record_id
-            $cell_number = $this->getRecordPhoneNumber($record_id);
+            $cell_number = $this->getRecordPhoneNumber($record_id, $project_id);
+            if (empty($cell_number)) {
+                $errors[] = "Invalid or missing phone number for record $record_id";
+            }
+
+            // If there are any reasons not to proceed, then log them and abort the email.
+            if (!empty($errors)) {
+                $this->emDebug($errors);
+                REDCap::logEvent(implode("\n",$errors),"","",$record_id,$event_id,$project_id);
+                return false;
+            }
+
         } catch (ConfigSetupException $cse) {
+            // TODO REVIEW
             REDCap::logEvent("EM Config not setup. Check with admin.");
+            return false;
         }
 
-        // they have opted out of SMS, do nothing
-        if ($sms_opt_out OR $study_withdrawn) {
-            return true;
-        }
+        // Create a new Conversation State
+        $CS = new ConversationState($this);
+        $CS->setValues([
+            "instrument"    => $instrument,
+            "event_id"      => $event_id,
+            "instance"      => $mc_context['instance'] ?? 1,
+            "number"        => $cell_number
+            // "current_field" => "",
+            // "state"         => "ACTIVE"
+            //    "project_id", $project_id
+        ]);
 
-//5. Clear out any existing states for this record in the state table
-//   If it comes through the email, then we should start from blank state.
-//TODO:
+        //5. Clear out any existing states for this record in the state table
+        $CS->closeExistingConversations();
+        $CS->setState("ACTIVE");
+        $CS->save();
 
-//6. get the first sms to send
+        //TODO:
+
+        //6. get the first sms to send
+        // Process next message to send (e.g. first message since current_field will be empty)
+
         $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
         $sms_to_send_list = $fm->getNextSMS('', $record_id, $mc_context['event_name']);
 
-//6. SEND SMS
-//TODO:
+        //6. SEND SMS
+        //TODO:
 
 
-
-        return true;
+        // Do not send the actual email
+        return false;
     }
 
     /**
@@ -141,11 +168,17 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param int $survey_id
      * @param string $record
      * @param int $instance
+     * @param string $stage completion_time
      * @return string | false
      */
-    public function getSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+    public function getSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time") {
         //TODO: TEST
-        $sql = "select rsr.completion_time
+        $stage = strtolower($stage);
+        if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
+            $this->emError("Invalid stage: $stage");
+            return false;
+        }
+        $sql = "select rsr." . $stage . "
             from redcap_surveys_response rsr
             join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
             where   rsp.survey_id = ?
@@ -165,46 +198,78 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
     /**
-     * Get the completion timestamp to now()
+     * Set the survey timestamp to value or now if omitted
      *
      * @param int $survey_id
      * @param string $record
      * @param int $instance
+     * @param string $stage
+     * @param string $datetime
      * @return void
      */
-    public function setSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+    public function setSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time", $datetime = null) {
         //TODO: TEST
+        $stage = strtolower($stage);
+        if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
+            $this->emError("Invalid stage: $stage");
+            return false;
+        }
+        if (is_null($datetime)) {
+            $datetime = date("Y-m-d H:i:s");
+        } else {
+            $datetime = date("Y-m-d H:i:s", strtotime($datetime));
+        }
+
         $sql = "update redcap_surveys_response rsr
-            set rsr.completion_time = NOW()
+            set rsr." . $stage . " = ?
             join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
             where   rsp.survey_id = ?
                 and rsp.event_id = ?
                 and rsr.record = ?
                 and rsr.instance = ?";
         $instance = is_null($instance) ? 1 : $instance;
-        $q = $this->query($sql, [$survey_id, $event_id, $record, $instance]);
+        $q = $this->query($sql, [$datetime, $survey_id, $event_id, $record, $instance]);
         $this->emDebug($q);
     }
 
 
+    /**
+     * Determine if a record has opted out to SMS communication
+     * @param $record_id
+     * @return mixed
+     * @throws ConfigSetupException
+     */
     public function isOptedOut($record_id) {
         // TODO:
         $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id' );
 
         $this->emDebug("Query for SMS opt out: ",$sms_opt_out);
-        $return = $sms_opt_out["1"];
+        $return = $sms_opt_out["1"] == 1;
         return $return;
     }
 
 
+    /**
+     * Determine if a record is withdrawn
+     * @param $record_id
+     * @return bool
+     * @throws ConfigSetupException
+     */
     public function isWithdrawn($record_id) {
         $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id' );
 
         $this->emDebug("Query for withdrawn: ", $withdrawn);
-        $return = $withdrawn["1"];
+        $return = $withdrawn["1"] == 1;
         return $return;
     }
 
+
+    /**
+     * Get the phone number for a record based on the project settings
+     * @param $record_id
+     * @return mixed|string
+     * @throws ConfigSetupException
+     */
     public function getRecordPhoneNumber($record_id) {
         $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id' );
 
@@ -212,7 +277,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         if ($number) {
             $number = $this->formatNumber($number);
         }
-
         return $number;
     }
 

@@ -12,7 +12,6 @@ class FormManager {
     private $form;
     private $event_id;
     private $project_id;
-
     private $script;    // Parsed version of data dictionary
 
     public function __construct($module, $form, $event_id, $project_id) {
