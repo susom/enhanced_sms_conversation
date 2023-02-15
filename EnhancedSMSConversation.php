@@ -264,15 +264,46 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 throw new \Exception("Missing required `From` number");
             }
             $record = $this->getRecordByNumber($from_number);
+            if (empty($record)) {
+                REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
+                return;
+            }
+
+            $body = $_POST['Body'];
+
+
+
+            switch (strtoupper($body)) {
+                case null:
+                    $msg = "Received a null text from ". $from_number;
+                    break;
+                case '':
+                    $msg = "Received an empty text from ". $from_number;
+                    break;
+                case 'STOP':
+                    $msg = "Received a STOP message from $from_number. Texts will no longer be sent to this record: $record";
+                    break;
+                case 'OPT-OUT':
+                    $msg = "Received an OPTOUT message from $from_number. Texts will no longer be sent to this record: $record";
+                    break;
+            }
+
+            if ($msg) REDCap::logEvent("Received text from $from_number", $msg);
 
             // TODO: Get opt-out-sms status for number
+            if ($this->isWithdrawn($record) OR $this->isOptedOut($record)) {
+                REDCap::logEvent("Received text from $record", "Received:  $body. No further action since withdrawn");
+
+                return;
+            }
+
 
             // Check if there is an open conversation
             if ($cs = ConversationState::getActiveConversationByNumber($this, $from_number)) {
                 $this->emDebug("Found conversation " . $cs->getId());
                 $response = "Found conversation " . $cs->getId();
-                $body = $_POST['body'];
-                $cs->parseReply();
+
+                $cs->parseReply($record, $body);
             } else {
                 $this->emDebug("No conversation for this number");
                 $response = "No conversations right now";
