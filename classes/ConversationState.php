@@ -80,7 +80,7 @@ class ConversationState extends SimpleEmLogObject
         //       if valid, save, continue - if invalid, repeat the question
         // TODO: update last_activity timestamp for conversation
 
-        // Determine current
+        // 1.
 
     }
 

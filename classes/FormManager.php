@@ -45,6 +45,8 @@ class FormManager {
             $field_label        = $field["field_label"];
             $choices            = $field["select_choices_or_calculations"];
             $branching_logic    = $field["branching_logic"];
+            $nonsense           = '';
+            $missing            = '';
 
             // Skip if not this form
             if ($form_name !== $this->form) continue;
@@ -62,6 +64,8 @@ class FormManager {
             if($field_type == "yesno" || $field_type  == "truefalse" || $field_type  == "radio" || $field_type == "dropdown"){
                 if($field_type == "yesno"){
                     $choices = "1,Yes | 0,No";
+                    $nonsense = "We don't understand. Please text Yes or No";
+                    $missing  = "We missed your response. Do you plan on drinking this weekend? TXT yes or no";
                 }
                 if($field_type == "truefalse"){
                     $choices = "1,True | 0,False";
