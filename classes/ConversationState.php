@@ -52,7 +52,10 @@ class ConversationState extends SimpleEmLogObject
 
         $current_field = $this->getCurrentField();
 
-        $nextSms = $fm->getNextSMS($current_field, $record_id);
+        // If current field is blank, then we start at the beginning.
+        // If current field is not blank, we find that point in the form_script
+
+        $nextSms = $fm->getNextSMS($current_field, $record_id, $event_id);
 
     }
 

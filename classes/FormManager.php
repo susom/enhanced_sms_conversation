@@ -10,9 +10,14 @@ class FormManager {
     /** @var EnhancedSMSConversation $module */
     private $module;
     private $form;
-    private $event_id;
+    private $event_id;      // TODO: Why do we need an event_id in the form manager?  Maybe Branching Logic?
     private $project_id;
-    private $script;    // Parsed version of data dictionary
+    private $form_script;    // Parsed version of data dictionary
+
+    const VALID_ENUMERATED_FIELD_TYPES = [
+        "yesno", "truefalse", "radio", "dropdown"
+    ];
+
 
     public function __construct($module, $form, $event_id, $project_id) {
         $this->module = $module;
@@ -20,80 +25,84 @@ class FormManager {
         $this->event_id = $event_id;
         $this->project_id=$project_id;
 
-        $this->loadForm();
+        // Parse the metadata for this form
+        $this->form_script = $this->createFormScript();
     }
 
     /**
-     * Load Form given form and event (passed in constructor)
+     * Create a parsed version of the form script that can be used for SMS replies
      *
      * Returns an array of fields of that form.
      *
      * @return array
      * @throws \Exception
      */
-    private function loadForm() {
+    private function createFormScript() {
 
         $dict = REDCap::getDataDictionary($this->project_id, "array");
 
-        $new_script = array();
+        $form_script = array();
 
         foreach($dict as $field_name => $field) {
             $form_name          = $field["form_name"];
+
+            // Skip if not this form
+            if ($form_name !== $this->form) continue;
+
             $field_type         = $field["field_type"];
             $annotation_arr     = explode(" ", trim($field["field_annotation"]));
             $field_label        = $field["field_label"];
             $choices            = $field["select_choices_or_calculations"];
             $branching_logic    = $field["branching_logic"];
 
-            // Skip if not this form
-            if ($form_name !== $this->form) continue;
-
-            // Skip if hidden-survey
+            // Skip any fields that are hidden-survey
             if (in_array("@HIDDEN-SURVEY", $annotation_arr)) continue;
 
-            // Skip if ESC IGNORE
+            // Skip fields that have @ESC-IGNORE
             if (in_array($this->module::ACTION_TAG_IGNORE_FIELD, $annotation_arr)) continue;
 
-            // TODO: Left off here, need to validate that question is doable by SMS...
-
-            //PROCESS PRESET CHOICES
-            $preset_choices = array();
-            if($field_type == "yesno" || $field_type  == "truefalse" || $field_type  == "radio" || $field_type == "dropdown"){
-                if($field_type == "yesno"){
-                    $choices = "1,Yes | 0,No";
-                }
-                if($field_type == "truefalse"){
-                    $choices = "1,True | 0,False";
-                }
-
-                //THESE WILL HAVE PRESET # , Choice Values
-                $choice_pairs   = explode("|",$choices);
-                foreach($choice_pairs as $pair){
-                    $num_val = explode(",",$pair);
-                    $preset_choices[trim($num_val[0])] = trim($num_val[1]);
-                }
-            }
-
-            //SET UP INITIAL "next_step"  IF ANY KIND OF BRANCHING IS INVOLVED WONT BE RELIABLE
-            $new_script[$field_name]  = array(
+            // SET UP INITIAL "next_step"  IF ANY KIND OF BRANCHING IS INVOLVED WONT BE RELIABLE
+            $step = [
                 "field_name"        => $field_name,
                 "field_type"        => $field_type,
                 "field_label"       => $field_label,
-                "preset_choices"    => $preset_choices,
                 "branching_logic"   => $branching_logic,
-            );
+            ];
 
-            //TODO: why was this annotation needed. for which use case?
-            if(in_array("@ESC_LASTSTEP",$annotation_arr)){
-                $new_script[$field_name]["laststep"] = true;
+            // PROCESS PRESET CHOICES
+            // Create an array of all choices for enumerated types
+            if (in_array($field_type, self::VALID_ENUMERATED_FIELD_TYPES)) {
+                // For some types, we need to create the choices:
+                if($field_type == "yesno") {
+                    $choices = "1,Yes | 0,No";
+                } elseif ($field_type == "truefalse") {
+                    $choices = "1,True | 0,False";
+                }
+
+                // Blow up the choices string into an array
+                $preset_choices = array();
+                $choice_pairs = explode("|",$choices);
+                foreach($choice_pairs as $pair){
+                    list($k, $v) = array_map('trim', explode(",",$pair,2));
+                    $preset_choices[$k] = $v;
+                }
+                $step["preset_choices"] = $preset_choices;
+            } elseif ($field_type == "text" ) {
+                // TODO: Handle text input validation in any way?
             }
+
+            $form_script[$field_name] = $step;
+
+            // //TODO: why was this annotation needed. for which use case?
+            // if(in_array("@ESC_LASTSTEP",$annotation_arr)){
+            //     $new_script[$field_name]["laststep"] = true;
+            // }
         }
 
-//        $this->module->emDebug("new script: ", $new_script);
-
-        $this->script = $new_script;
-        return $new_script;
+        $this->module->emDebug("Form script: ", $form_script);
+        return $form_script;
     }
+
 
     /**
      * Given the current_question (variable name in data dictionary) and the record_id and event_id,
@@ -102,11 +111,10 @@ class FormManager {
      *
      * @param $current_question String
      * @param $record_id
-     * @param $event_id
-     * @return void
+     * @return string
      */
-    public function getNextSMS($current_question, $record_id, $event_id) {
-        //if $current_question is blank, send the first sms applicable for this record in this event_id
+    public function getNextSMS($current_question, $record_id) {
+        // if $current_question is blank, send the first sms applicable for this record in this event_id
 
 //        if ($current_question == '') {
 //            $script = $this->script;
@@ -116,7 +124,7 @@ class FormManager {
             $next_step = $next_step_metadata['field_name'];
 //        }
 
-        return $this->getCurrentFormStep($next_step, $record_id, $event_id);
+        return $this->getCurrentFormStep($next_step, $record_id);
     }
 
     /**
@@ -135,7 +143,7 @@ class FormManager {
      * @param $event_id
      * @return mixed
      */
-    public function getCurrentFormStep($current_question, $record_id, $event_id) {
+    public function getCurrentFormStep($current_question, $record_id) {
         $this->module->emDebug("Current question: ". $current_question);
 
         // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
@@ -159,9 +167,9 @@ class FormManager {
      * @return mixed
      */
     public function recurseCurrentSteps($current_step, $record_id, $event_id, $container) {
-        $this_step          = $this->script[$current_step]["field_name"];
-        $field_type         = $this->script[$current_step]["field_type"];
-        $branching_logic    = $this->script[$current_step]["branching_logic"];
+        $this_step          = $this->form_script[$current_step]["field_name"];
+        $field_type         = $this->form_script[$current_step]["field_type"];
+        $branching_logic    = $this->form_script[$current_step]["branching_logic"];
 
         $next_step = $this->getNextStepInScript($current_step);
 
@@ -172,10 +180,10 @@ class FormManager {
             if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
                 $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
                 if ($valid) {
-                    array_push($container, $this->script[$current_step]);
+                    array_push($container, $this->form_script[$current_step]);
                 }
             } else {
-                array_push($container, $this->script[$current_step]);
+                array_push($container, $this->form_script[$current_step]);
             }
 
 
@@ -190,7 +198,7 @@ class FormManager {
             if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
                 $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
                 if ($valid) {
-                    array_push($container, $this->script[$current_step]);
+                    array_push($container, $this->form_script[$current_step]);
                 } else {
 
                     //$next_step = $this->getNextStepInScript($current_step);
@@ -203,7 +211,7 @@ class FormManager {
                 }
 
             } else {
-                array_push($container, $this->script[$current_step]);
+                array_push($container, $this->form_script[$current_step]);
             }
         }
         return $container;
@@ -219,7 +227,7 @@ class FormManager {
      * @return false|mixed
      */
     private function getNextStepInScript($key) {
-        $script = $this->script;
+        $script = $this->form_script;
 
         if ($key == '') {
             return reset($script);
