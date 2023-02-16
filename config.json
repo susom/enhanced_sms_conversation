@@ -127,7 +127,7 @@
             "type": "field-list"
         },
         {
-            "key": "sms-out-out-field-event-id",
+            "key": "sms-opt-out-field-event-id",
             "name": "<b>SMS Opt Out field Event ID</b><br>If project is longitudinal, please select the event containing the SMS Opt Out field",
             "required": false,
             "type": "event-list"

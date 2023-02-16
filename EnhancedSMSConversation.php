@@ -216,6 +216,31 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         return $number;
     }
 
+    public function optOutSMS($record_id) {
+        $optout_field = $this->getProjectSetting('sms-opt-out-field');
+        $optout_field_event_id = $this->getProjectSetting('sms-opt-out-field-event-id');
+
+        if (empty($optout_field) && empty($optout_field_event_id)) {
+            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
+        }
+
+        $data = array(
+            REDCap::getRecordIdField() => $record_id,
+            'redcap_event_name' => REDCap::getEventNames(true, false, $optout_field_event_id),
+            $optout_field. "___1" => 1
+        );
+
+        $this->emDebug("saved opt out", $data);
+        $response = REDCap::saveData('json', json_encode(array($data)));
+        $this->emDebug("saved opt out", $response['errors']);
+        if (empty($response['errors'])) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
 
     /**
      * @param $record_id
@@ -272,28 +297,31 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $body = $_POST['Body'];
 
 
-
+            $msg = null;
             switch (strtoupper($body)) {
                 case null:
-                    $msg = "Received a null text from ". $from_number;
-                    break;
                 case '':
                     $msg = "Received an empty text from ". $from_number;
                     break;
                 case 'STOP':
-                    $msg = "Received a STOP message from $from_number. Texts will no longer be sent to this record: $record";
-                    break;
                 case 'OPT-OUT':
-                    $msg = "Received an OPTOUT message from $from_number. Texts will no longer be sent to this record: $record";
+                    if ($this->optOutSMS($record)) {
+                        $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record";
+                    } else {
+                        $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
+                    }
                     break;
             }
 
-            if ($msg) REDCap::logEvent("Received text from $from_number", $msg);
+            //No need to check state for this message. Log event and return
+            if ($msg) {
+                REDCap::logEvent("Received text from $from_number", $msg);
+                return;
+            }
 
             // TODO: Get opt-out-sms status for number
             if ($this->isWithdrawn($record) OR $this->isOptedOut($record)) {
                 REDCap::logEvent("Received text from $record", "Received:  $body. No further action since withdrawn");
-
                 return;
             }
 
