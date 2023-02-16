@@ -300,21 +300,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $msg = null;
             switch (strtoupper($body)) {
                 case null:
-                    $msg = "Received a null text from ". $from_number;
-                    break;
                 case '':
                     $msg = "Received an empty text from ". $from_number;
                     break;
                 case 'STOP':
-                    $msg = "Received a STOP message from $from_number. Texts will no longer be sent to this record: $record";
-                    break;
                 case 'OPT-OUT':
                     if ($this->optOutSMS($record)) {
-                        $msg = "Received an OPTOUT message from $from_number. Texts will no longer be sent to this record: $record";
+                        $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record";
                     } else {
-                        $msg = "Received an OPTOUT message from $from_number but was unable to automatically save that information. Please consult admin.";
+                        $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
                     }
-
                     break;
             }
 
