@@ -6,7 +6,6 @@ namespace Stanford\EnhancedSMSConversation;
 // This should handle inbound SMS/XML messages from Twilio
 
 /*
-
 ToCountry=US
 ToState=MN
 SmsMessageSid=SMdb090c884ec16cfde4b0a37c25d515e5

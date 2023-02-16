@@ -9,10 +9,13 @@ require_once "classes/FormManager.php";
 
 use \REDCap;
 use \Twilio\TwiML\MessagingResponse;
+use \Twilio\Rest\Client;
 
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
+    public $TwilioClient;
+    public $twilio_number;
 
     const NUMBER_PREFIX = "NUMBER:";
 
@@ -24,6 +27,30 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function __construct() {
         parent::__construct();
         // Other code to run when object is instantiated
+    }
+
+    /**
+     * @return Client TwilioClient
+     * @throws \Twilio\Exceptions\ConfigurationException
+     */
+    public function getTwilioClient() {
+        if (empty($this->TwilioClient)) {
+            $sid = $this->getProjectSetting('twilio-sid');
+            $token = $this->getProjectSetting('twilio-token');
+            $this->TwilioClient = new Client($sid, $token);
+        }
+        return $this->TwilioClient;
+    }
+
+    /**
+     * Get the twilio number from the project settings.
+     * @return mixed
+     */
+    public function getTwilioNumber() {
+        if (empty($this->twilio_number)) {
+            $this->twilio_number = $this->formatNumber($this->getProjectSetting('twilio-number'));
+        }
+        return $this->twilio_number;
     }
 
 
@@ -135,7 +162,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             "instrument"    => $instrument,
             "event_id"      => $event_id,
             "instance"      => $mc_context['instance'] ?? 1,
-            "number"        => $cell_number
+            "cell_number"        => $cell_number
             // "current_field" => "",
             // "state"         => "ACTIVE"
             //    "project_id", $project_id
@@ -145,6 +172,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $CS->closeExistingConversations();
         $CS->setState("ACTIVE");
         $CS->save();
+
+
+        $CS->sendCurrentMessages();
+
 
         //TODO:
 
@@ -161,6 +192,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // Do not send the actual email
         return false;
     }
+
 
     /**
      * Get the completion timestamp if it exists
@@ -314,7 +346,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // TODO: Validate message as Twilio
         try {
             // Confirm to number matches configured twilio number
-            $twilio_number = $this->getProjectSetting('twilio-number');
+            $twilio_number = $this->getTwilioNumber();
             if ($_POST['To'] !== $twilio_number) {
                 $error = "Received inbound message addressed to " . $_POST['To'] . " when project is configured to use $twilio_number";
                 $this->emError($error);
@@ -327,16 +359,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (empty($from_number)) {
                 throw new \Exception("Missing required `From` number");
             }
-            $record = $this->getRecordByNumber($from_number);
+            $record_id = $this->getRecordIdByCellNumber($from_number);
 
             // TODO: Get opt-out-sms status for number
 
             // Check if there is an open conversation
-            if ($cs = ConversationState::getActiveConversationByNumber($this, $from_number)) {
-                $this->emDebug("Found conversation " . $cs->getId());
-                $response = "Found conversation " . $cs->getId();
-                $body = $_POST['body'];
-                $cs->parseReply();
+            if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
+                $this->emDebug("Found conversation " . $CS->getId());
+                $response = "Found conversation " . $CS->getId();
+                //$body = $_POST['body'];
+                $CS->parseReply();
             } else {
                 $this->emDebug("No conversation for this number");
                 $response = "No conversations right now";
@@ -390,12 +422,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param $number
      * @return int|string|null
      */
-    public function getRecordByNumber($number) {
+    public function getRecordIdByCellNumber($number) {
         $phone_field = $this->getProjectSetting('phone-field');
         $phone_field_event_id = $this->getProjectSetting('phone-field-event-id');
+        $number_in_redcap_format = $this->formatNumber($number, 'redcap');
+
         $fields = [REDCap::getRecordIdField()];
         $filter_logic = (REDCap::isLongitudinal() ? '[' . REDCap::getEventNames(true,true,$phone_field_event_id) . ']' : '') .
-            '[' . $phone_field . '] = "' . $this->formatNumber($number,"redcap") . '"';
+            '[' . $phone_field . '] = "' . $number_in_redcap_format . '"';
 
         $params = [
             'return_format' => 'array',

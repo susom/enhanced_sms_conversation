@@ -78,7 +78,7 @@ class FormManager {
             if (in_array($this->module::ACTION_TAG_IGNORE_FIELD, $annotation_arr)) continue;
 
             // SET UP INITIAL "next_step"  IF ANY KIND OF BRANCHING IS INVOLVED WONT BE RELIABLE
-            $step = [
+            $meta = [
                 "field_name"        => $field_name,
                 "field_type"        => $field_type,
                 "field_label"       => $field_label,
@@ -113,10 +113,10 @@ class FormManager {
                     list($k, $v) = array_map('trim', explode(",",$pair,2));
                     $preset_choices[$k] = $v;
                 }
-                $step["preset_choices"] = $preset_choices;
+                $meta["preset_choices"] = $preset_choices;
             }
 
-            $form_script[$field_name] = $step;
+            $form_script[$field_name] = $meta;
 
             // //TODO: why was this annotation needed. for which use case?
             // if(in_array("@ESC_LASTSTEP",$annotation_arr)){
@@ -145,7 +145,7 @@ class FormManager {
      * @param string $start_question
      * @param string $record_id
      * @param int $instance
-     * @return array [ array $messages, string $end_question ]
+     * @return array [ array $messages, string $current_question ]
      */
     public function getMessagesAndCurrentQuestion($start_question, $record_id, $instance=1) {
         $messages_to_send = []; // This is an array of messages to send
@@ -256,6 +256,16 @@ class FormManager {
         }
         return !$valid;
     }
+
+
+
+
+
+
+
+
+
+
 
 
     /**
