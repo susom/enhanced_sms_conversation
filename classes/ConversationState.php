@@ -40,7 +40,6 @@ class ConversationState extends SimpleEmLogObject
         parent::__construct($module, $type, $log_id, $limit_params);
     }
 
-    /** METADATA PARSING */
 
     /**
      * Send the current question to the participant, include previous fields if necessary
@@ -80,9 +79,31 @@ class ConversationState extends SimpleEmLogObject
         }
 
         if ($current_field !== $new_current_field) {
+            // We have moved to a new field
             $this->module->emDebug("Changing current field from $current_field to $new_current_field");
             $this->setValue('current_field', $new_current_field);
+
+            if (empty($new_current_field)) {
+                // The survey has ended (likely on a descriptive field)
+                $this->module->emDebug("Survey has ended on descriptive field");
+                $this->setState('COMPLETE');
+            }
             $this->save();
+        }
+
+    }
+
+    public function setExpiryTs() {
+        $default_expiry = $this->module->getProjectSetting('default-conversation-expiry-minutes');
+        if (!empty($default_expiry)) {
+            $this->setValue('expiry_ts', time() + $default_expiry);
+        }
+    }
+
+    public function setReminderTs() {
+        $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes');
+        if (!empty($default_reminder)) {
+            $this->setValue('reminder_ts', time() + $default_reminder);
         }
     }
 
@@ -111,8 +132,75 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
+    /**
+     * Handle a response from a participant
+     * @return void
+     */
+    public function parseReply() {
+        // By definition, we are an active conversation at this point
+        $body = $_POST['body'];
+
+        $now = time();
+        $expiry_ts = $this->getExpirtyTs();
+
+        if (!empty($expiry_ts) && $now > $expiry_ts) {
+            // This conversation has expired
+            $this->expireConversation();
+            $response = "This conversation has expired";
+        } else {
+            $fm = new FormManager($this->module, $this->getInstrument(), $this->getEventId(), $this->module->getProjectId());
+
+            // Check the participant response and try to confirm it is a valid response
+            if (false !== $response = $fm->validateResponse($this->getCurrentField(),$body)) {
+                // VALID RESPONSE
+                $this->module->emDebug("We have validated response of $body as $response to save in field " . $this->getCurrentField());
+
+                // Save the response?
+                $result = $this->saveResponseToRedcap($response);
+                // TODO: Handle errors on save - maybea a try catch especially for text-based saves
+
+                $next_question = $fm->getNextQuestion($this->getCurrentField());
+                if (empty($next_question)) {
+                    // We are at the end of the survey
+                    // $this->module->setSurveyTimestamp()
+                    $this->setState('COMPLETE');
+                    $this->save();
+                    // TODO: Is there a 'thank you' or is that part of the descriptive...
+                } else {
+                    // Send out the next set of messages
+                    $this->setCurrentField($next_question);
+                    $this->setReminderTs();
+                    $this->sendCurrentMessages();
+                    // This should save at the end.
+                }
+            } else {
+                // INVALID response
+                $this->module->emDebug("Response of $body was not valid for " . $this->getCurrentField());
+                $response = "I'm sorry, but that was not a valid response\n";
+                $this->setReminderTs();
+                $this->sendCurrentMessages();
+                //todo: repeat question
+            }
+        }
+    }
 
 
+    public function saveResponseToRedcap($response) {
+        $field_name = $this->getCurrentField();
+        $event_id   = $this->getEventId();
+        $project_id = $this->module->getProjectId();
+        $record_id  = $this->getRecordId();
+        $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
+        $result     = REDCap::saveData($project_id, 'array', $data);
+        $this->module->emDebug("Saved $response", $result);
+        return $result;
+    }
+
+
+    public function expireConversation() {
+        $this->setState('EXPIRED');
+        $this->save();
+    }
 
 
 
@@ -146,6 +234,10 @@ class ConversationState extends SimpleEmLogObject
         return $this->getValue('record_id');
     }
 
+    public function getExpirtyTs() {
+        return $this->getValue('expiry_ts');
+    }
+
     public function getState()
     {
         return $this->getValue('state');
@@ -161,6 +253,10 @@ class ConversationState extends SimpleEmLogObject
             throw new Exception ("Invalid State: $state");
         }
         $this->setValue('state', $state);
+    }
+
+    public function setCurrentField($field) {
+        $this->setValue('current_field', $field);
     }
 
 
@@ -205,21 +301,6 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-
-
-
-    public function parseReply() {
-        $body = $_POST['body'];
-
-
-        // TODO: Check for expiration
-        // TODO: get current question and verify response is valid
-        //       if valid, save, continue - if invalid, repeat the question
-        // TODO: update last_activity timestamp for conversation
-
-        // Determine current
-
-    }
 
 
 

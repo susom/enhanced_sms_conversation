@@ -31,6 +31,19 @@ class FormManager {
         "yesno", "truefalse", "radio", "dropdown"
     ];
 
+    const BOOLEAN_ALIASES = [
+        "yes"=> 1,
+        "y" => 1,
+        "no" => 0,
+        "n" => 0,
+        "nope" => 0,
+        "yep" => 1,
+        "true" => 1,
+        "false" => 0,
+        "t" => 1,
+        "f" => 0
+    ];
+
     const VALID_TEXT_TYPES = [
         //"text"
     ];
@@ -258,152 +271,203 @@ class FormManager {
     }
 
 
-
-
-
-
-
-
-
-
-
-
     /**
-     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
-     * this method will return the next series of metadata ready to be sent as SMS
-     * Any descriptive fields preceding it and then the next valid question will be returned.
-     *
-     * @param $current_question String
-     * @param $record_id
-     * @return string
+     * Try to take in a response to a field_name and see if it is valid - return the value to save, or false if invalid.
+     * @param $field_name
+     * @param $response
+     * @return false|int|string
      */
-    public function getNextSMS($current_question, $record_id) {
-        // if $current_question is blank, send the first sms applicable for this record in this event_id
+    public function validateResponse($field_name, $response) {
 
-//        if ($current_question == '') {
-//            $script = $this->script;
-//            $current_question = key($script);
-//        } else {
-            $next_step_metadata = $this->getNextStepInScript($current_question);
-            $next_step = $next_step_metadata['field_name'];
-//        }
+        $input = trim($response);
 
-        return $this->getCurrentFormStep($next_step, $record_id);
-    }
+        $meta = $this->form_script[$field_name] ?? null;
+        if (is_null($meta)) {
+            $this->module->emError("Unable to find $field_name in form script");
+            $response = false;
+        }
 
-    /**
-     * Gets the next sendable fields for this record in this event for the form loaded for this form manager
-     * We need this for the reminder scenario where the current question needs to be resent.
-     * For the reminder scenario, we need to only send the last field (do not send the descriptive fields)
-     *
-     * Fields can be excluded from this list by adding ACTION TAG : @ESC_IGNORE
-     *
-     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
-     * this method will return the current series of metadata fields to be sent as SMS
-     * Any descriptive fields preceding it and then the next valid question will be returned.
-     *
-     * @param $current_question String
-     * @param $record_id
-     * @param $event_id
-     * @return mixed
-     */
-    public function getCurrentFormStep($current_question, $record_id) {
-        $this->module->emDebug("Current question: ". $current_question);
+        if ($choices = $meta['preset_choices']) {
+            // Try to find a key-match
+            if (in_array($input, array_keys($choices))) {
+                // Found a match to a key in the choices
+                $this->module->emDebug("Valid response of $input for $field_name");
+                return $input;
+            }
 
-        // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
-        $total_fields_in_step = $this->recurseCurrentSteps($current_question, $record_id, $event_id, array());
-        $this->module->emDebug("FIELDS IN CURRENT STEP", $current_question, $total_fields_in_step);
+            // Try to find a value match
+            if (false !== $key = array_search($input, $choices)) {
+                // Found a match to a label of a choice
+                $this->module->emDebug("Matched $input to choice $key of $field_name");
+                return $key;
+            }
 
-        return $total_fields_in_step;
-    }
-
-    /**
-     * Recursive method that traverses the current form loaded in this FormManager.
-     *
-     * At each recursive level, it adds to the array if the branching logic is applicable to this record in this
-     * event for this form. Any number of descriptive fields will be added until a field expecting a response is
-     * hit.
-     *
-     * @param $current_step
-     * @param $record_id
-     * @param $event_id
-     * @param $container
-     * @return mixed
-     */
-    public function recurseCurrentSteps($current_step, $record_id, $event_id, $container) {
-        $this_step          = $this->form_script[$current_step]["field_name"];
-        $field_type         = $this->form_script[$current_step]["field_type"];
-        $branching_logic    = $this->form_script[$current_step]["branching_logic"];
-
-        $next_step = $this->getNextStepInScript($current_step);
-
-        if (empty($next_step)) return $container;
-
-        // CHECK DESCRIPTIVE
-        if ($field_type == "descriptive") {
-            if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
-                $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
-                if ($valid) {
-                    array_push($container, $this->form_script[$current_step]);
+            // Check for boolean aliases
+            if (in_array($meta['field_type'], ["yesno","truefalse"])) {
+                if ( isset(self::BOOLEAN_ALIASES[$input]) ) {
+                    $alias = self::BOOLEAN_ALIASES[$input];
+                    if (in_array($alias, array_keys($choices))) {
+                        $this->module->emDebug("Matched $input to alias $alias which is valid for $field_name");
+                        return $alias;
+                    }
                 }
-            } else {
-                array_push($container, $this->form_script[$current_step]);
             }
-
-
-
-            if ($next_step) {
-                $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
-
-            }
-
-        } else {
-            //NOT DESCRIPTIVE
-            if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
-                $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
-                if ($valid) {
-                    array_push($container, $this->form_script[$current_step]);
-                } else {
-
-                    //$next_step = $this->getNextStepInScript($current_step);
-
-                    //if ($next_step) {
-                    $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
-
-                    //}
-
-                }
-
-            } else {
-                array_push($container, $this->form_script[$current_step]);
-            }
+        } elseif ($meta['field_type'] == "text") {
+            // TODO - validate TEXT!
+            return $input;
         }
-        return $container;
+
+        return false;
     }
 
-    /**
-     * Helper method to retrieve the next field in the given form.
-     *
-     * Returns array of metadata if found
-     * Returns false if there is no more field to be returned.
-     *
-     * @param $key
-     * @return false|mixed
-     */
-    private function getNextStepInScript($key) {
-        $script = $this->form_script;
 
-        if ($key == '') {
-            return reset($script);
-        }
 
-        $currentKey = key($script);
 
-        while ($currentKey !== null && $currentKey != $key) {
-            next($script);
-            $currentKey = key($script);
-        }
-        return next($script);
 
-    }
+
+
+
+
+//     /**
+//      * Given the current_question (variable name in data dictionary) and the record_id and event_id,
+//      * this method will return the next series of metadata ready to be sent as SMS
+//      * Any descriptive fields preceding it and then the next valid question will be returned.
+//      *
+//      * @param $current_question String
+//      * @param $record_id
+//      * @return string
+//      */
+//     public function getNextSMS($current_question, $record_id) {
+//         // if $current_question is blank, send the first sms applicable for this record in this event_id
+//
+// //        if ($current_question == '') {
+// //            $script = $this->script;
+// //            $current_question = key($script);
+// //        } else {
+//             $next_step_metadata = $this->getNextStepInScript($current_question);
+//             $next_step = $next_step_metadata['field_name'];
+// //        }
+//
+//         return $this->getCurrentFormStep($next_step, $record_id);
+//     }
+//
+//     /**
+//      * Gets the next sendable fields for this record in this event for the form loaded for this form manager
+//      * We need this for the reminder scenario where the current question needs to be resent.
+//      * For the reminder scenario, we need to only send the last field (do not send the descriptive fields)
+//      *
+//      * Fields can be excluded from this list by adding ACTION TAG : @ESC_IGNORE
+//      *
+//      * Given the current_question (variable name in data dictionary) and the record_id and event_id,
+//      * this method will return the current series of metadata fields to be sent as SMS
+//      * Any descriptive fields preceding it and then the next valid question will be returned.
+//      *
+//      * @param $current_question String
+//      * @param $record_id
+//      * @param $event_id
+//      * @return mixed
+//      */
+//     public function getCurrentFormStep($current_question, $record_id) {
+//         $this->module->emDebug("Current question: ". $current_question);
+//
+//         // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
+//         $total_fields_in_step = $this->recurseCurrentSteps($current_question, $record_id, $event_id, array());
+//         $this->module->emDebug("FIELDS IN CURRENT STEP", $current_question, $total_fields_in_step);
+//
+//         return $total_fields_in_step;
+//     }
+//
+//     /**
+//      * Recursive method that traverses the current form loaded in this FormManager.
+//      *
+//      * At each recursive level, it adds to the array if the branching logic is applicable to this record in this
+//      * event for this form. Any number of descriptive fields will be added until a field expecting a response is
+//      * hit.
+//      *
+//      * @param $current_step
+//      * @param $record_id
+//      * @param $event_id
+//      * @param $container
+//      * @return mixed
+//      */
+//     public function recurseCurrentSteps($current_step, $record_id, $event_id, $container) {
+//         $this_step          = $this->form_script[$current_step]["field_name"];
+//         $field_type         = $this->form_script[$current_step]["field_type"];
+//         $branching_logic    = $this->form_script[$current_step]["branching_logic"];
+//
+//         $next_step = $this->getNextStepInScript($current_step);
+//
+//         if (empty($next_step)) return $container;
+//
+//         // CHECK DESCRIPTIVE
+//         if ($field_type == "descriptive") {
+//             if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
+//                 $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
+//                 if ($valid) {
+//                     array_push($container, $this->form_script[$current_step]);
+//                 }
+//             } else {
+//                 array_push($container, $this->form_script[$current_step]);
+//             }
+//
+//
+//
+//             if ($next_step) {
+//                 $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
+//
+//             }
+//
+//         } else {
+//             //NOT DESCRIPTIVE
+//             if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
+//                 $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
+//                 if ($valid) {
+//                     array_push($container, $this->form_script[$current_step]);
+//                 } else {
+//
+//                     //$next_step = $this->getNextStepInScript($current_step);
+//
+//                     //if ($next_step) {
+//                     $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
+//
+//                     //}
+//
+//                 }
+//
+//             } else {
+//                 array_push($container, $this->form_script[$current_step]);
+//             }
+//         }
+//         return $container;
+//     }
+//
+//     /**
+//      * Helper method to retrieve the next field in the given form.
+//      *
+//      * Returns array of metadata if found
+//      * Returns false if there is no more field to be returned.
+//      *
+//      * @param $key
+//      * @return false|mixed
+//      */
+//     private function getNextStepInScript($key) {
+//         $script = $this->form_script;
+//
+//         if ($key == '') {
+//             return reset($script);
+//         }
+//
+//         $currentKey = key($script);
+//
+//         while ($currentKey !== null && $currentKey != $key) {
+//             next($script);
+//             $currentKey = key($script);
+//         }
+//         return next($script);
+//
+//     }
+
+
+
+
 }

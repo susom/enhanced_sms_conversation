@@ -171,23 +171,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         //5. Clear out any existing states for this record in the state table
         $CS->closeExistingConversations();
         $CS->setState("ACTIVE");
+        $CS->setExpiryTs();
+        $CS->setReminderTs();
         $CS->save();
 
-
         $CS->sendCurrentMessages();
-
-
-        //TODO:
-
-        //6. get the first sms to send
-        // Process next message to send (e.g. first message since current_field will be empty)
-
-        $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
-        $sms_to_send_list = $fm->getNextSMS('', $record_id, $mc_context['event_name']);
-
-        //6. SEND SMS
-        //TODO:
-
 
         // Do not send the actual email
         return false;
@@ -341,7 +329,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         return $return_field;
     }
 
-
+    /**
+     * Process Inbound SMS
+     * @return MessagingResponse
+     */
     public function processInboundMessage() {
         // TODO: Validate message as Twilio
         try {
@@ -355,13 +346,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             // See if record exists on project
+            // TODO: Do I need to do this?
             $from_number = $_POST['From'];
             if (empty($from_number)) {
                 throw new \Exception("Missing required `From` number");
             }
             $record_id = $this->getRecordIdByCellNumber($from_number);
-
-            // TODO: Get opt-out-sms status for number
 
             // Check if there is an open conversation
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
