@@ -336,8 +336,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function processInboundMessage() {
         // TODO: Validate message as Twilio
         try {
-            // Confirm to number matches configured twilio number
             $twilio_number = $this->getTwilioNumber();
+
+            // Confirm to number matches configured twilio number
             if ($_POST['To'] !== $twilio_number) {
                 $error = "Received inbound message addressed to " . $_POST['To'] . " when project is configured to use $twilio_number";
                 $this->emError($error);
@@ -345,8 +346,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // throw new \Exception($error);
             }
 
-            // See if record exists on project
             // TODO: Do I need to do this?
+            // See if record exists on project
             $from_number = $_POST['From'];
             if (empty($from_number)) {
                 throw new \Exception("Missing required `From` number");
@@ -357,8 +358,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
                 $this->emDebug("Found conversation " . $CS->getId());
                 $response = "Found conversation " . $CS->getId();
-                //$body = $_POST['body'];
-                $CS->parseReply();
+                $response = $CS->parseReply();
             } else {
                 $this->emDebug("No conversation for this number");
                 $response = "No conversations right now";

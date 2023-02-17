@@ -133,11 +133,13 @@ class ConversationState extends SimpleEmLogObject
 
     /**
      * Handle a response from a participant
-     * @return void
+     * @return string response
      */
     public function parseReply() {
         // By definition, we are an active conversation at this point
         $body = $_POST['body'];
+
+        $response = "";
 
         $now = time();
         $expiry_ts = $this->getExpirtyTs();
@@ -175,12 +177,15 @@ class ConversationState extends SimpleEmLogObject
             } else {
                 // INVALID response
                 $this->module->emDebug("Response of $body was not valid for " . $this->getCurrentField());
-                $response = "I'm sorry, but that was not a valid response\n";
                 $this->setReminderTs();
                 $this->sendCurrentMessages();
-                //todo: repeat question
+                //TODO: repeat question
             }
         }
+
+        // TODO: I'm not sure we really want to return a response at all as opposed to just sending new text messages.
+        // We could consider just always returning nothing to inbound messages...
+        return $response;
     }
 
 
