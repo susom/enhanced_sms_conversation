@@ -90,7 +90,6 @@ class ConversationState extends SimpleEmLogObject
             }
             $this->save();
         }
-
     }
 
     public function setExpiryTs() {
