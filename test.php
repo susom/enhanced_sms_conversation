@@ -16,10 +16,6 @@ echo "<br><br>This is the TRAM innbound link: <br>".$url;
 $module->emDebug("INBOUND: $url");
 
 
-$form = "thursday";
-$event = "week_1_sms_arm_1";
-
-
 //TEST1:  TEST OF ALL DESCRIPTIVE FIELDS
 if (false) {
 
@@ -62,7 +58,7 @@ if (false) {
 }
 
 //TEST3:  TEST BRANCHING OF EVENT
-if (true) {
+if (false) {
 
     $record_id_control = 1; //CONTROL
     $record_id_goal_support = 2; //GOAL SUPPORT
@@ -133,6 +129,72 @@ if (false) {
     $andy_steps = $fm->getNextQuestion('desd');
     $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_goal_support, $event);
     $module->emDebug("a: for goal support", $foo);
+}
+
+//TEST4: CHECK CONVERSATION PERSISTENCE
+if (false) {
+
+    $record_id = "1";
+    $instrument = "thursday";
+    $event = "week_1_sms_arm_1";
+    $event_id= REDCap::getEventIdFromUniqueEvent($event);
+    $cell_number = '+16505295666';
+
+    //5. Clear out any existing states for this record in the state table
+    //   If it comes through the email, then we should start from blank state.
+    if ($found_cs = ConversationState::getActiveConversationByNumber($module, $cell_number)) {
+        $id = $found_cs->getId();
+        $module->emDebug("Found record $id. Closing this conversation..." );
+        $found_cs->expireConversation();
+        $found_cs->save();
+    }
+
+    //6. get the first sms to send
+    $fm = new FormManager($module, $instrument, $event_id, $module->getProjectId());
+    $sms_to_send_list = $fm->getNextSMS('', $record_id, $event_id);
+    $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+
+    //7. Set the state table
+    // Create a new Conversation State
+    $CS = new ConversationState($module);
+    $CS->setValues([
+                       "instrument"    => $instrument,
+                       "event_id"      => $event_id,
+                       "instance"      => $mc_context['instance'] ?? 1,
+                       "cell_number"   => $cell_number,
+                       "current_field" => $active_field
+                   ]);
+    $CS->setState("ACTIVE");
+    $CS->setExpiryTs();
+    $CS->setReminderTs();
+    $CS->save();
+
+}
+
+//TEST5: CHECK CONVERSATION FIND AND CLOSE
+if (false) {
+
+    $my_num = "+16505295666";
+    if ($found_cs = ConversationState::getActiveConversationByNumber($module, $my_num)) {
+
+        var_dump($found_cs);
+        $state = $found_cs->getValue('state');
+        $id = $found_cs->getId();
+        $module->emDebug("Found record " . $id);
+        $found_cs->expireConversation();
+        $found_cs->save();
+    } else {
+        $module->emDebug("no conversation found for $my_num");
+    }
+
+    //$found_cs->closeExistingConversations(); //this one searches by number again??
+}
+
+//TEST6: CHECK TWILIO SENDING
+if (true) {
+    $tm = $module->getTwilioManager($module->getProjectId());
+
+    $tm->sendTwilioMessage('+16505295666', "hello there");
 }
 
 if (false) {

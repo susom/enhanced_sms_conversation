@@ -6,6 +6,7 @@ require_once "vendor/autoload.php";
 require_once "classes/ConversationState.php";
 require_once "classes/MessageContext.php";
 require_once "classes/FormManager.php";
+require_once "classes/TwilioManager.php";
 
 use \REDCap;
 use \Twilio\TwiML\MessagingResponse;
@@ -64,9 +65,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     }
 
-    public function getTwilioManager() {
+    public function getTwilioManager($project_id) {
         if ($this->twilio_manager === null) {
-            $this->twilio_manager = new TwilioManager($this, $this->getProjectId());
+            $this->twilio_manager = new TwilioManager($this, $project_id);
         }
         return $this->twilio_manager;
     }
@@ -170,39 +171,43 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             return true;
         }
 
+        //5. Clear out any existing states for this record in the state table
+        //   If it comes through the email, then we should start from blank state.
+        if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+            $id = $found_cs->getId();
+            $this->emDebug("Found record $id. Closing this conversation...");
+            $found_cs->expireConversation();
+            $found_cs->save();
+        }
+
+
+        //6. get the first sms to send
+        $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
+        $sms_to_send_list = $fm->getNextSMS('', $record_id, $event_id);
+        $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+
+
+        //7. Set the state table
         // Create a new Conversation State
         $CS = new ConversationState($this);
         $CS->setValues([
             "instrument"    => $instrument,
             "event_id"      => $event_id,
             "instance"      => $mc_context['instance'] ?? 1,
-            "cell_number"        => $cell_number
-            // "current_field" => "",
-            // "state"         => "ACTIVE"
-            //    "project_id", $project_id
+            "cell_number"   => $cell_number,
+            "current_field" => $active_field
         ]);
-
-        //5. Clear out any existing states for this record in the state table
-        //   If it comes through the email, then we should start from blank state.
-        $CS->closeExistingConversations();
         $CS->setState("ACTIVE");
         $CS->setExpiryTs();
         $CS->setReminderTs();
         $CS->save();
 
-//6. get the first sms to send
-        $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
-        $sms_to_send_list = $fm->getNextSMS('', $record_id, $mc_context['event_name']);
-
-//7. Set the state table
-        $cs = new ConversationState($module, "CS");
-        $cs->setValue("state", "ACTIVE");
-        $cs->setValue('number', $cell_nubmer);
-
-
-
-//6. SEND SMS
-        $CS->sendCurrentMessages();
+        //6. SEND SMS
+        $tm = $this->getTwilioManager($this->getProjectId());
+        foreach ($sms_to_send_list as $k => $v) {
+            $msg = $v['field_label'];
+            $tm->sendTwilioMessage($cell_number, $msg);
+        }
 
         // Do not send the actual email
         return false;

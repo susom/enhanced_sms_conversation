@@ -149,6 +149,24 @@ class FormManager {
     }
 
     /**
+     * Given list of sms to send (includes descriptive field,
+     * return the first (and shuld be only) active field to be saved
+     * as current conversation field.
+     *
+     * @param $sms_list
+     * @return String
+     */
+    public function getActiveQuestion($sms_list) {
+        //return the first non-descriptive field
+        foreach ($sms_list as $key => $value) {
+            if ($value['field_type'] !== 'descriptive') {
+                $result = $value['field_name'];
+                return $result;
+            }
+        }
+    }
+
+    /**
      * Gets the next sendable fields for this record in this event for the form loaded for this form manager
      * We need this for the reminder scenario where the current question needs to be resent.
      * For the reminder scenario, we need to only send the last field (do not send the descriptive fields)
@@ -262,9 +280,10 @@ class FormManager {
     }
 
 
-    /****************************************
-     *
-     */
+    /****************************************/
+    /*  ANDY's VERSION                      */
+    /****************************************/
+
 
 
 
