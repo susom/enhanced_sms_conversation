@@ -465,24 +465,79 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     }
 
 
+    /**
+     * Handles incoming text response:
+     * - If valid response, gets next text and sends it
+     *                      updates state table
+     * - if invalid response, construct nonsense warning and sends it
+     *
+     * @param $record_id
+     * @param $cell_number
+     * @param $msg
+     * @return void
+     * @throws \Exception
+     */
     public function handleReply($record_id, $cell_number, $msg) {
+        $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning');
 
-
-
+        //given cell_number, see what is the current state in the ConversationState
         if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+            $this->emDebug("IN LOG ID: ". $found_cs->getId());
+            $this->emDebug("EXPECTING RESPONSES FOR CURRENT FIELD: " . $found_cs->getCurrentField());
 
+            //get FormManager to get validation and response info.
             $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
+            //get the TwilioManager as well
+            $tm = $this->getTwilioManager($this->getProjectId());
 
-            //XXYJL: why not just use redcap save errors to validate?
-            $data = array(
-                REDCap::getRecordIdField() => $record_id,
-                'redcap_event_name' => REDCap::getEventNames(true, false, $found_cs->getEventId()),
-                $found_cs->getCurrentField() => $msg
-            );
 
-            $this->emDebug("saving incoming data", $data);
-            $response = REDCap::saveData('json', json_encode(array($data)));
-            $this->emDebug("saved opt out", $response['errors']);
+
+            //according to state table this is the current question
+            $current_field = $found_cs->getCurrentField();
+            $event_id = $found_cs->getEventId();
+            $event_name = REDCap::getEventNames(true, false, $event_id);
+
+
+            // Check the participant response and try to confirm it is a valid response
+            if (false !== $response = $fm->validateResponse($current_field, $msg)) {
+
+                // VALID RESPONSE
+                $this->emDebug("We have validated response of $msg as $response to save in field " . $current_field);
+
+                // Save the response to redcap?
+                //$result = $this->saveResponseToRedcap($response);
+                // TODO: Handle errors on save - maybea a try catch especially for text-based saves
+
+                //Since valid get next SMS to send and save field to state
+
+                $sms_to_send_list = $fm->getNextSMS($current_field, $record_id, $event_id);
+                $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+
+                if (empty($sms_to_send_list)) {
+                    // We are at the end of the survey
+                    // $this->module->setSurveyTimestamp()
+                    $found_cs->setState('COMPLETE');
+                    $found_cs->save();
+                    // TODO: Is there a 'thank you' or is that part of the descriptive...
+                } else {
+                    // Send out the next set of messages
+                    $found_cs->setCurrentField($active_field);
+                    $found_cs->setReminderTs();
+                    $found_cs->save();
+                    foreach ($sms_to_send_list as $k => $v) {
+                        $sms = $v['field_label'];
+                        $tm->sendTwilioMessage($cell_number, $sms);
+                    }
+                    // This should save at the end.
+                }
+            } else {
+                // INVALID response
+                $this->emDebug("Response of $msg was not valid for " . $current_field);
+                $nonsense_text_reply = $nonsense_text_warning . " " . $fm->getFieldInstruction($current_field);
+                $found_cs->setReminderTs();
+                $tm->sendTwilioMessage($cell_number, $nonsense_text_reply);
+                //TODO: repeat question
+            }
 
         } else {
             $this->emDebug("No ACTIVE conversation for this number $cell_number");

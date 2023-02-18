@@ -15,6 +15,24 @@ echo "<br><br>This is the TRAM innbound link: <br>".$url;
 
 $module->emDebug("INBOUND: $url");
 
+//TEST0
+if (false) {
+    $record_id = 1;
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+    $cell_number = "+14152357577";
+    $current_step = 'wplan_ctrl';
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+
+    $all_steps = $fm->getCurrentFormStep($current_step, $record_id,$event);
+    $module->emDebug("from $current_step", $all_steps);
+
+    //$all_steps = $fm->getNextSMS($current_step, $record_id,$event);
+    //$module->emDebug("from $current_step", $all_steps);
+
+}
 
 //TEST1:  TEST OF ALL DESCRIPTIVE FIELDS
 if (false) {
@@ -25,23 +43,40 @@ if (false) {
 
     $fm = new FormManager($module, $form, $event, $project_id);
 
+    //expect welcome_3
+    $all_steps = $fm->getNextSMS('welcome_3', $record_id,$event);
+    $module->emDebug("from welcome_3", $all_steps);
+
+    //expect welcome_1, welcome_2, welcome_3
     $all_steps = $fm->getNextSMS('', $record_id,$event);
     $module->emDebug("from 0", $all_steps);
 
+    //expect welcome_2, welcome_3
     $all_steps = $fm->getNextSMS('welcome_1', $record_id,$event);
     $module->emDebug("from welcome 1", $all_steps);
 
+    //expect welcome_3
     $all_steps = $fm->getNextSMS('welcome_2', $record_id,$event);
     $module->emDebug("from welcome_2", $all_steps);
 
+    //expect welcome_3
+    $all_steps = $fm->getNextSMS('welcome_3', $record_id,$event);
+    $module->emDebug("from welcome_3", $all_steps);
+
+    /**
+    //expect welcome_1, welcome_2, welcome_3
     $andy_steps = $fm->getNextQuestion('');
     $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
     $module->emDebug("a: from 0", $foo);
+
+    //expect welcome_3
     $andy_steps = $fm->getNextQuestion('welcome_2');
     $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
     $module->emDebug("a: from welcome_2", $foo);
+     */
 }
 
+//TEST1.1: TEST last field
 if (false) {
 
     $record_id_control = 1; //CONTROL
@@ -50,11 +85,17 @@ if (false) {
 
     $form = "thursday";
     $event = "week_1_sms_arm_1";
+    $current_sms = 'desd_ctrl';
 
     $fm = new FormManager($module, $form, $event, $project_id);
 
-    $all_steps = $fm->getNextSMS('desd', $record_id_control, $event);
+    $all_steps = $fm->getNextSMS($current_sms, $record_id_control, $event);
     $module->emDebug("for control", $all_steps);
+
+
+    $andy_steps = $fm->getNextQuestion($current_sms);
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_control, $event);
+    $module->emDebug("a: control", $foo);
 }
 
 //TEST3:  TEST BRANCHING OF EVENT
@@ -107,30 +148,36 @@ if (false) {
 
     $form = "thursday";
     $event = "week_1_sms_arm_1";
+    $event_id = REDCap::getEventIdFromUniqueEvent($event);
+
+    //in project set record 1: desd = 0
+    //in project set record 2: desd = 0
 
     $fm = new FormManager($module, $form, $event, $project_id);
 
     //expecting desd_ctrol
-    $all_steps = $fm->getNextSMS('desd', $record_id_control,$event);
+    $all_steps = $fm->getNextSMS('desd', $record_id_control,$event_id);
     $module->emDebug("for control", $all_steps);
 
-    //expecting gconf
-    $all_steps = $fm->getNextSMS('desd', $record_id_goal_support,$event);
+    //expecting gset
+    $all_steps = $fm->getNextSMS('desd', $record_id_goal_support,$event_id);
     $module->emDebug("for goal support", $all_steps);
 
-
+/**
 //expecting desd_ctrol
     $andy_steps = $fm->getNextQuestion('desd');
-    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_control, $event);
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_control, $event_id);
     $module->emDebug("a: for control", $foo);
+
     //expecting gconf
     $andy_steps = $fm->getNextQuestion('desd');
-    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_goal_support, $event);
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_goal_support, $event_id);
     $module->emDebug("a: for goal support", $foo);
+ */
 }
 
 //TEST7: TEST FORM_MANAGER: validateResponse
-if (true) {
+if (false) {
     $form = "thursday";
     $event = "week_1_sms_arm_1";
     $record_id = '1';
@@ -143,25 +190,28 @@ if (true) {
     $meta = $fm->getCurrentFormStep($current_field, $record_id,$event);
     $module->emDebug("list is", $meta);
 
-    //XXYJL: why not just use redcap save errors to validate?
-    $msg = "ha";
+    $msg = "ha";  //expected response is false: got false
     $return = $fm->validateResponse($current_field, $msg);
     $module->emDebug("return  for $msg: ", $return);
 
-    $msg = "yes";
+    //TODO: need to be case insensitive
+    $msg = "yes"; //TODO: FAIL: expected response is 1: got false
     $return = $fm->validateResponse($current_field, $msg);
     $module->emDebug("return  for $msg: ", $return);
 
-
-    $msg = "Yes";
+    $msg = "Yes";  //expected response is 1: got 1
     $return = $fm->validateResponse($current_field, $msg);
     $module->emDebug("return  for $msg: ", $return);
 
-    $msg = "no";
+    $msg = "no";  //TODO: FAIL: expected response is 0: got false
     $return = $fm->validateResponse($current_field, $msg);
     $module->emDebug("return  for $msg: ", $return);
 
-    $msg = 0;
+    $msg = "No";  //expected response is 0: got 0
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = 0; //TODO: FAIL: expected response is false: got 0
     $return = $fm->validateResponse($current_field, $msg);
     $module->emDebug("return  for $msg: ", $return);
 
@@ -241,10 +291,36 @@ if (false) {
 }
 
 //TEST6: CHECK TWILIO SENDING
-if (true) {
+if (false) {
     $tm = $module->getTwilioManager($module->getProjectId());
 
     $tm->sendTwilioMessage('+16505295666', "hello there");
+}
+
+
+//TEST8: TEST NONSENSE ? MISSING INSTRUCTIONS
+if (true) {
+    $record_id = 1;
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+    $cell_number = "+14152357577";
+
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+    $tm = $module->getTwilioManager($module->getProjectId());
+
+    //expecting text yes or no
+    $current_step = "wplan";
+    $module->emDebug("Instructions for $current_step are: ".$fm->getFieldInstruction($current_step));
+
+
+    $module->handleReply($record_id, $cell_number, 'blah');
+
+    $module->handleReply($record_id, $cell_number, 'yes');
+
+
+
+
 }
 
 if (false) {
