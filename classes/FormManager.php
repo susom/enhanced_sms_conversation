@@ -66,11 +66,13 @@ class FormManager {
             // Skip if not this form
             if ($form_name !== $this->form) continue;
 
-            $field_type         = $field["field_type"];
-            $annotation_arr     = explode(" ", trim($field["field_annotation"]));
-            $field_label        = $field["field_label"];
-            $choices            = $field["select_choices_or_calculations"];
-            $branching_logic    = $field["branching_logic"];
+            $field_type             = $field["field_type"];
+            $annotation_arr         = explode(" ", trim($field["field_annotation"]));
+            $field_label            = $field["field_label"];
+            $choices                = $field["select_choices_or_calculations"];
+            $branching_logic        = $field["branching_logic"];
+            $text_validation_min    = $field["text_validation_min"];
+            $text_validation_max    = $field["text_validation_max"];
 
             // Skip any fields that are hidden-survey
             if (in_array("@HIDDEN-SURVEY", $annotation_arr)) continue;
@@ -103,6 +105,7 @@ class FormManager {
                 // For some types, we need to create the choices:
                 if($field_type == "yesno") {
                     $choices = "1,Yes | 0,No";
+                    $meta["instructions"] = "Please text Yes or No";
                 } elseif ($field_type == "truefalse") {
                     $choices = "1,True | 0,False";
                 }
@@ -114,8 +117,15 @@ class FormManager {
                     list($k, $v) = array_map('trim', explode(",",$pair,2));
                     $preset_choices[$k] = $v;
                 }
-                $meta["preset_choices"] = $preset_choices;
+                $meta["preset_choices"]     = $preset_choices;
 
+
+            }
+
+            if ($field_type == 'text') {
+                if (isset($text_validation_max)) {
+                    $meta["instructions"] = "Please text a value between $text_validation_min and $text_validation_max";
+                }
 
             }
 
@@ -129,6 +139,11 @@ class FormManager {
 
         //$this->module->emDebug("Form script: ", $form_script);
         return $form_script;
+    }
+
+    public function getFieldInstruction($current_step) {
+        $instructions = $this->form_script[$current_step]["instructions"];
+        return $instructions;
     }
 
     /**
@@ -146,6 +161,11 @@ class FormManager {
 
         $next_step_metadata = $this->getNextStepInScript($current_question);
         $next_step = $next_step_metadata['field_name'];
+
+        if ($next_step == null) {
+            //no more steps
+            return null;
+        }
 
         return $this->getCurrentFormStep($next_step, $record_id, $event_id);
     }
@@ -186,11 +206,13 @@ class FormManager {
      */
     public function getCurrentFormStep($current_question, $record_id, $event_id) {
         $this->module->emDebug("Current question: ". $current_question);
+        $container = array();
+
 
         // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
-        $total_fields_in_step = $this->recurseCurrentSteps($current_question, $record_id, $event_id, array());
+        $container = $this->recurseCurrentSteps($current_question, $record_id, $event_id, $container);
 
-        return $total_fields_in_step;
+        return $container;
     }
 
     /**
@@ -211,49 +233,31 @@ class FormManager {
         $field_type         = $this->form_script[$current_step]["field_type"];
         $branching_logic    = $this->form_script[$current_step]["branching_logic"];
 
-        $next_step = $this->getNextStepInScript($current_step);
 
-        // CHECK DESCRIPTIVE
-        if ($field_type == "descriptive") {
-            if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
-                $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
-                if ($valid) {
-                    array_push($container, $this->form_script[$current_step]);
-                }
-            } else {
+        // IS CURRENT STEP VALID
+        if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ) {
+            $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
+            if ($valid) {
                 array_push($container, $this->form_script[$current_step]);
             }
-
-
-
-            if ($next_step) {
-                $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
-
-            }
-
         } else {
-            //NOT DESCRIPTIVE
-            if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ){
-                $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
-                if ($valid) {
-                    array_push($container, $this->form_script[$current_step]);
-                } else {
-
-                    //$next_step = $this->getNextStepInScript($current_step);
-
-                    //if ($next_step) {
-                    $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
-
-                    //}
-
-                }
-
-            } else {
-                array_push($container, $this->form_script[$current_step]);
-            }
+            array_push($container, $this->form_script[$current_step]);
         }
+
+
+        //terminating conditions: no more steps or the last time in the sms_list is not descriptive
+        $next_step = $this->getNextStepInScript($current_step);
+        $last_field_type_in_container = end($container)['field_type'];
+        if (empty($next_step) || (($last_field_type_in_container!= null) && ($last_field_type_in_container !== "descriptive"))) {
+            //this is the last
+            return $container;
+        } else {
+            $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
+        }
+
         return $container;
-    }
+
+     }
 
     /**
      * Helper method to retrieve the next field in the given form.

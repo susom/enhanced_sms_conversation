@@ -133,6 +133,8 @@ class ConversationState extends SimpleEmLogObject
 
 
     /**
+     * xxyjl: moving this to EnhancedSMSConversation
+     *
      * Handle a response from a participant
      * @return string response
      */
