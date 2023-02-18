@@ -134,10 +134,10 @@ class MessageContext {
                 // Map message properties to context valid keys
                 $propertyMap = [
                     'project_id' => 'project_id',
-                    'record' => 'record_id',
-                    'event_id' => 'event_id',
-                    'form' => 'instrument',
-                    'instance' => 'instance'
+                    'record'     => 'record_id',
+                    'event_id'   => 'event_id',
+                    'form'       => 'instrument',
+                    'instance'   => 'instance'
                 ];
                 if ($this->source == "Alert") unset($propertyMap['form']);
 //                $this->source = "Message";  // Message Object - delayed ASI is one use case...

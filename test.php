@@ -16,11 +16,266 @@ echo "<br><br>This is the TRAM innbound link: <br>".$url;
 $module->emDebug("INBOUND: $url");
 
 
-$form = "thursday";
-$event = "week_1_sms_arm_1";
+//TEST1:  TEST OF ALL DESCRIPTIVE FIELDS
+if (false) {
+
+    $record_id = 1;
+    $form = "welcome_sms";
+    $event = "baseline_arm_1";
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+    $all_steps = $fm->getNextSMS('', $record_id,$event);
+    $module->emDebug("from 0", $all_steps);
+
+    $all_steps = $fm->getNextSMS('welcome_1', $record_id,$event);
+    $module->emDebug("from welcome 1", $all_steps);
+
+    $all_steps = $fm->getNextSMS('welcome_2', $record_id,$event);
+    $module->emDebug("from welcome_2", $all_steps);
+
+    $andy_steps = $fm->getNextQuestion('');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
+    $module->emDebug("a: from 0", $foo);
+    $andy_steps = $fm->getNextQuestion('welcome_2');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
+    $module->emDebug("a: from welcome_2", $foo);
+}
 
 if (false) {
-    $fm = new FormManager($module, $form, $event);
+
+    $record_id_control = 1; //CONTROL
+    $record_id_goal_support = 2; //GOAL SUPPORT
+    $record_id_coaching = 3;  //COACHING
+
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+    $all_steps = $fm->getNextSMS('desd', $record_id_control, $event);
+    $module->emDebug("for control", $all_steps);
+}
+
+//TEST3:  TEST BRANCHING OF EVENT
+if (false) {
+
+    $record_id_control = 1; //CONTROL
+    $record_id_goal_support = 2; //GOAL SUPPORT
+    $record_id_coaching = 3;  //COACHING
+
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+
+    $current_sms = 'wplan';
+
+    //set record 3: wplan=0
+
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+    //expect "your body will reward you"
+    $all_steps = $fm->getNextSMS($current_sms, $record_id_coaching,$event);
+    $module->emDebug("for $current_sms", $all_steps);
+
+
+    $andy_steps = $fm->getNextQuestion($current_sms);
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_coaching, $event);
+    $module->emDebug("a: for $current_sms", $foo);
+
+
+
+    $event = "week_2_sms_arm_1";
+
+//expect "Don't be surprise...
+    $all_steps = $fm->getNextSMS($current_sms, $record_id_coaching,$event);
+    $module->emDebug("for $current_sms", $all_steps);
+
+
+    $andy_steps = $fm->getNextQuestion($current_sms);
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_coaching, $event);
+    $module->emDebug("a: for $current_sms", $foo);
+
+}
+
+//TEST2:   TEST FORM_MANAGER BRANCHING OF RANDOMIZED GROUP
+if (false) {
+
+    $record_id_control = 1; //CONTROL
+    $record_id_goal_support = 2; //GOAL SUPPORT
+    $record_id_coaching = 3;  //COACHING
+
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+    //expecting desd_ctrol
+    $all_steps = $fm->getNextSMS('desd', $record_id_control,$event);
+    $module->emDebug("for control", $all_steps);
+
+    //expecting gconf
+    $all_steps = $fm->getNextSMS('desd', $record_id_goal_support,$event);
+    $module->emDebug("for goal support", $all_steps);
+
+
+//expecting desd_ctrol
+    $andy_steps = $fm->getNextQuestion('desd');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_control, $event);
+    $module->emDebug("a: for control", $foo);
+    //expecting gconf
+    $andy_steps = $fm->getNextQuestion('desd');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_goal_support, $event);
+    $module->emDebug("a: for goal support", $foo);
+}
+
+//TEST7: TEST FORM_MANAGER: validateResponse
+if (true) {
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+    $record_id = '1';
+    $current_field = 'wplan';
+
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+//    $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
+
+    $meta = $fm->getCurrentFormStep($current_field, $record_id,$event);
+    $module->emDebug("list is", $meta);
+
+    //XXYJL: why not just use redcap save errors to validate?
+    $msg = "ha";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = "yes";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+
+    $msg = "Yes";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = "no";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = 0;
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    return;
+
+    $data = array(
+        REDCap::getRecordIdField() => $record_id,
+        //'redcap_event_name' => REDCap::getEventNames(true, false, $found_cs->getEventId()),
+        'redcap_event_name'          => $event,
+        //$found_cs->getCurrentField() => $msg,
+        $current_field     => $msg
+    );
+
+    $this->emDebug("saving incoming data", $data);
+    $response = REDCap::saveData('json', json_encode(array($data)));
+    $this->emDebug("saved opt out", $response['errors']);
+}
+
+
+//TEST4: CHECK CONVERSATION PERSISTENCE
+if (false) {
+
+    $record_id = "1";
+    $instrument = "thursday";
+    $event = "week_1_sms_arm_1";
+    $event_id= REDCap::getEventIdFromUniqueEvent($event);
+    $cell_number = '+16505295666';
+
+    //5. Clear out any existing states for this record in the state table
+    //   If it comes through the email, then we should start from blank state.
+    if ($found_cs = ConversationState::getActiveConversationByNumber($module, $cell_number)) {
+        $id = $found_cs->getId();
+        $module->emDebug("Found record $id. Closing this conversation..." );
+        $found_cs->expireConversation();
+        $found_cs->save();
+    }
+
+    //6. get the first sms to send
+    $fm = new FormManager($module, $instrument, $event_id, $module->getProjectId());
+    $sms_to_send_list = $fm->getNextSMS('', $record_id, $event_id);
+    $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+
+    //7. Set the state table
+    // Create a new Conversation State
+    $CS = new ConversationState($module);
+    $CS->setValues([
+                       "instrument"    => $instrument,
+                       "event_id"      => $event_id,
+                       "instance"      => $mc_context['instance'] ?? 1,
+                       "cell_number"   => $cell_number,
+                       "current_field" => $active_field
+                   ]);
+    $CS->setState("ACTIVE");
+    $CS->setExpiryTs();
+    $CS->setReminderTs();
+    $CS->save();
+
+}
+
+//TEST5: CHECK CONVERSATION FIND AND CLOSE
+if (false) {
+
+    $my_num = "+16505295666";
+    if ($found_cs = ConversationState::getActiveConversationByNumber($module, $my_num)) {
+
+        var_dump($found_cs);
+        $state = $found_cs->getValue('state');
+        $id = $found_cs->getId();
+        $module->emDebug("Found record " . $id);
+        $found_cs->expireConversation();
+        $found_cs->save();
+    } else {
+        $module->emDebug("no conversation found for $my_num");
+    }
+
+    //$found_cs->closeExistingConversations(); //this one searches by number again??
+}
+
+//TEST6: CHECK TWILIO SENDING
+if (true) {
+    $tm = $module->getTwilioManager($module->getProjectId());
+
+    $tm->sendTwilioMessage('+16505295666', "hello there");
+}
+
+if (false) {
+
+    $record_id = 1;
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+
+    $record_id = 1;
+    $form = "welcome_sms";
+    $event = "baseline_arm_1";
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+
+    $all_steps = $fm->getNextSMS('', $record_id, $event);
+    $module->emDebug("from 0", $all_steps);
+    $all_steps = $fm->getNextSMS('welcome_2', $record_id,$event);
+    $module->emDebug("from sms_start", $all_steps);
+
+
+    $andy_steps = $fm->getNextQuestion('');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
+    $module->emDebug("a: from 0", $foo);
+    $andy_steps = $fm->getNextQuestion('welcome_2');
+    $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id, $event);
+    $module->emDebug("a: from sms_start", $foo);
+
+}
+
+if (false) {
+    $fm = new FormManager($module, $form, $event, $project_id);
 
     //check public method to get next texts given current text
     $all_steps = $fm->getNextSMS('', 1, 'week_1_sms_arm_1' );

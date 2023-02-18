@@ -6,22 +6,53 @@ require_once "vendor/autoload.php";
 require_once "classes/ConversationState.php";
 require_once "classes/MessageContext.php";
 require_once "classes/FormManager.php";
+require_once "classes/TwilioManager.php";
 
 use \REDCap;
 use \Twilio\TwiML\MessagingResponse;
+use \Twilio\Rest\Client;
 
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
+    public $TwilioClient;
+    public $twilio_number;
+    public $twilio_manager;
 
     const NUMBER_PREFIX = "NUMBER:";
 
     const ACTION_TAG_PREFIX = "@ESC";
     const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
 
+    const VALID_SURVEY_TIMESTAMP_STAGES = ['completion_time','start_time', 'first_submit_time'];
+
     public function __construct() {
         parent::__construct();
         // Other code to run when object is instantiated
+    }
+
+    /**
+     * @return Client TwilioClient
+     * @throws \Twilio\Exceptions\ConfigurationException
+     */
+    public function getTwilioClient() {
+        if (empty($this->TwilioClient)) {
+            $sid = $this->getProjectSetting('twilio-sid');
+            $token = $this->getProjectSetting('twilio-token');
+            $this->TwilioClient = new Client($sid, $token);
+        }
+        return $this->TwilioClient;
+    }
+
+    /**
+     * Get the twilio number from the project settings.
+     * @return mixed
+     */
+    public function getTwilioNumber() {
+        if (empty($this->twilio_number)) {
+            $this->twilio_number = $this->formatNumber($this->getProjectSetting('twilio-number'));
+        }
+        return $this->twilio_number;
     }
 
 
@@ -33,6 +64,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // TODO: make sure withdraw field exists in event
 
     }
+
+    public function getTwilioManager($project_id) {
+        if ($this->twilio_manager === null) {
+            $this->twilio_manager = new TwilioManager($this, $project_id);
+        }
+        return $this->twilio_manager;
+    }
+
 
     /**
      * Hijacking redcap_email hook to send texts rather than the project's ASI.
@@ -58,82 +97,118 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         if (strpos($subject, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
-        //xdebug_break();
         $MC = new MessageContext($this);
         $this->emDebug("Context array for email is: ", $MC->getContextAsArray(), PAGE);
 
-/*
-    // Immediate ASI works:
-    [source] => ASI
-    [source_id] => 177
-    [project_id] => 81
-    [record_id] => 17
-    [event_id] => 167
-    [instance] => 1
-    [event_name] => event_1_arm_1
-    [instrument] => survey_1
-    [survey_id] => 177
+        /*
+            // Immediate ASI works:
+            [source] => ASI
+            [source_id] => 177
+            [project_id] => 81
+            [record_id] => 17
+            [event_id] => 167
+            [instance] => 1
+            [event_name] => event_1_arm_1
+            [instrument] => survey_1
+            [survey_id] => 177
 
-    // immediate alert - instgrument isn't correct
-    [source] => Alert
-    [source_id] => 51
-    [project_id] => 81
-    [record_id] => 18
-    [event_id] => 167
-    [instance] => 1
-    [event_name] => event_1_arm_1
-    [instrument] => record_information
-    [survey_id] =>
-*/
-
-        //     // This is an Enhanced SMS Survey
-        //     $params = [
-        //         // "instrument" => $Context->get
-        //     ];
-        //
-        // }
-
+            // immediate alert - instgrument isn't correct
+            [source] => Alert
+            [source_id] => 51
+            [project_id] => 81
+            [record_id] => 18
+            [event_id] => 167
+            [instance] => 1
+            [event_name] => event_1_arm_1
+            [instrument] => record_information
+            [survey_id] =>
+        */
 
         // 1. get record-id + event + survey_id
         $mc_context = $MC->getContextAsArray();
-        $record_id  =  $mc_context['record_id'];
-        $event_id   =  $mc_context['event_id'];
-        $instrument =  $mc_context['instrument'];
-        $survey_id  =  $mc_context['survey_id'];
+        $project_id = $mc_context['project_id'];
+        $record_id  = $mc_context['record_id'];
+        $event_id   = $mc_context['event_id'];
+        $instrument = $mc_context['instrument'];
+        $survey_id  = $mc_context['survey_id'];
 
         try {
+            $errors = [];
+
             // 2. get the withdrawn status of this record_id
-            $study_withdrawn = $this->isWithdrawn($record_id);
+            if ($this->isWithdrawn($record_id, $project_id)) {
+                // Do not create a new CS
+                $errors[] = "New conversation for record $record_id aborted because record is withdrawn";
+            }
 
             // 3. get the SMS optout status of this record_id
-            $sms_opt_out = $this->isOptedOut($record_id);
+            if ($this->isOptedOut($record_id, $project_id)) {
+                // Do not create a new CS
+                $errors[] = "New conversation for record $record_id aborted because record is opted out";
+            }
 
             // 4. get the telephone number by record_id
-            $cell_number = $this->getRecordPhoneNumber($record_id);
+            $cell_number = $this->getRecordPhoneNumber($record_id, $project_id);
+            if (empty($cell_number)) {
+                $errors[] = "Invalid or missing phone number for record $record_id";
+            }
+
+            // If there are any reasons not to proceed, then log them and abort the email.
+            if (!empty($errors)) {
+                $this->emDebug($errors);
+                REDCap::logEvent(implode("\n",$errors),"","",$record_id,$event_id,$project_id);
+                return false;
+            }
+
         } catch (ConfigSetupException $cse) {
+            // TODO REVIEW
             REDCap::logEvent("EM Config not setup. Check with admin.");
+            return false;
         }
 
-        // they have opted out of SMS, do nothing
-        if ($sms_opt_out OR $study_withdrawn) {
-            return true;
+        //5. Clear out any existing states for this record in the state table
+        //   If it comes through the email, then we should start from blank state.
+        if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+            $id = $found_cs->getId();
+            $this->emDebug("Found record $id. Closing this conversation...");
+            $found_cs->expireConversation();
+            $found_cs->save();
         }
 
-//5. Clear out any existing states for this record in the state table
-//   If it comes through the email, then we should start from blank state.
-//TODO:
 
-//6. get the first sms to send
+        //6. get the first sms to send
         $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
-        $sms_to_send_list = $fm->getNextSMS('', $record_id, $mc_context['event_name']);
-
-//6. SEND SMS
-//TODO:
+        $sms_to_send_list = $fm->getNextSMS('', $record_id, $event_id);
+        $active_field     = $fm->getActiveQuestion($sms_to_send_list);
 
 
+        //7. Set the state table
+        // Create a new Conversation State
+        $CS = new ConversationState($this);
+        $CS->setValues([
+            "record_id"     => $record_id,
+            "instrument"    => $instrument,
+            "event_id"      => $event_id,
+            "instance"      => $mc_context['instance'] ?? 1,
+            "cell_number"   => $cell_number,
+            "current_field" => $active_field
+        ]);
+        $CS->setState("ACTIVE");
+        $CS->setExpiryTs();
+        $CS->setReminderTs();
+        $CS->save();
 
-        return true;
+        //6. SEND SMS
+        $tm = $this->getTwilioManager($this->getProjectId());
+        foreach ($sms_to_send_list as $k => $v) {
+            $msg = $v['field_label'];
+            $tm->sendTwilioMessage($cell_number, $msg);
+        }
+
+        // Do not send the actual email
+        return false;
     }
+
 
     /**
      * Get the completion timestamp if it exists
@@ -141,11 +216,17 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param int $survey_id
      * @param string $record
      * @param int $instance
+     * @param string $stage completion_time
      * @return string | false
      */
-    public function getSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+    public function getSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time") {
         //TODO: TEST
-        $sql = "select rsr.completion_time
+        $stage = strtolower($stage);
+        if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
+            $this->emError("Invalid stage: $stage");
+            return false;
+        }
+        $sql = "select rsr." . $stage . "
             from redcap_surveys_response rsr
             join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
             where   rsp.survey_id = ?
@@ -165,46 +246,78 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
     /**
-     * Get the completion timestamp to now()
+     * Set the survey timestamp to value or now if omitted
      *
      * @param int $survey_id
      * @param string $record
      * @param int $instance
+     * @param string $stage
+     * @param string $datetime
      * @return void
      */
-    public function setSurveyCompletionTimestamp($survey_id, $event_id, $record, $instance) {
+    public function setSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time", $datetime = null) {
         //TODO: TEST
+        $stage = strtolower($stage);
+        if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
+            $this->emError("Invalid stage: $stage");
+            return false;
+        }
+        if (is_null($datetime)) {
+            $datetime = date("Y-m-d H:i:s");
+        } else {
+            $datetime = date("Y-m-d H:i:s", strtotime($datetime));
+        }
+
         $sql = "update redcap_surveys_response rsr
-            set rsr.completion_time = NOW()
+            set rsr." . $stage . " = ?
             join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
             where   rsp.survey_id = ?
                 and rsp.event_id = ?
                 and rsr.record = ?
                 and rsr.instance = ?";
         $instance = is_null($instance) ? 1 : $instance;
-        $q = $this->query($sql, [$survey_id, $event_id, $record, $instance]);
+        $q = $this->query($sql, [$datetime, $survey_id, $event_id, $record, $instance]);
         $this->emDebug($q);
     }
 
 
+    /**
+     * Determine if a record has opted out to SMS communication
+     * @param $record_id
+     * @return mixed
+     * @throws ConfigSetupException
+     */
     public function isOptedOut($record_id) {
         // TODO:
         $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id' );
 
         $this->emDebug("Query for SMS opt out: ",$sms_opt_out);
-        $return = $sms_opt_out["1"];
+        $return = $sms_opt_out["1"] == 1;
         return $return;
     }
 
 
+    /**
+     * Determine if a record is withdrawn
+     * @param $record_id
+     * @return bool
+     * @throws ConfigSetupException
+     */
     public function isWithdrawn($record_id) {
         $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id' );
 
         $this->emDebug("Query for withdrawn: ", $withdrawn);
-        $return = $withdrawn["1"];
+        $return = $withdrawn["1"] == 1;
         return $return;
     }
 
+
+    /**
+     * Get the phone number for a record based on the project settings
+     * @param $record_id
+     * @return mixed|string
+     * @throws ConfigSetupException
+     */
     public function getRecordPhoneNumber($record_id) {
         $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id' );
 
@@ -212,7 +325,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         if ($number) {
             $number = $this->formatNumber($number);
         }
-
         return $number;
     }
 
@@ -270,7 +382,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         return $return_field;
     }
 
-
+    /**
+     * Process Inbound SMS
+     * @return MessagingResponse
+     */
     public function processInboundMessage() {
         // TODO: Validate message as Twilio
         try {
@@ -288,14 +403,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (empty($from_number)) {
                 throw new \Exception("Missing required `From` number");
             }
-            $record = $this->getRecordByNumber($from_number);
+            $record_id = $this->getRecordIdByCellNumber($from_number);
+
             if (empty($record)) {
                 REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
                 return;
             }
 
             $body = $_POST['Body'];
-
 
             $msg = null;
             switch (strtoupper($body)) {
@@ -325,13 +440,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 return;
             }
 
+            //this is a real reply
+            $this->handleReply($this->formatNumber($record_id, $from_number, $msg));
 
             // Check if there is an open conversation
-            if ($cs = ConversationState::getActiveConversationByNumber($this, $from_number)) {
-                $this->emDebug("Found conversation " . $cs->getId());
-                $response = "Found conversation " . $cs->getId();
-
-                $cs->parseReply($record, $body);
+            if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
+                $this->emDebug("Found conversation " . $CS->getId());
+                $response = "Found conversation " . $CS->getId();
+                $response = $CS->parseReply();
             } else {
                 $this->emDebug("No conversation for this number");
                 $response = "No conversations right now";
@@ -347,6 +463,36 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $mr->message($response);
         return $mr;
     }
+
+
+    public function handleReply($record_id, $cell_number, $msg) {
+
+
+
+        if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+
+            $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
+
+            //XXYJL: why not just use redcap save errors to validate?
+            $data = array(
+                REDCap::getRecordIdField() => $record_id,
+                'redcap_event_name' => REDCap::getEventNames(true, false, $found_cs->getEventId()),
+                $found_cs->getCurrentField() => $msg
+            );
+
+            $this->emDebug("saving incoming data", $data);
+            $response = REDCap::saveData('json', json_encode(array($data)));
+            $this->emDebug("saved opt out", $response['errors']);
+
+        } else {
+            $this->emDebug("No ACTIVE conversation for this number $cell_number");
+            //TODO: text back?
+
+            //TODO: logEvent?
+            REDCap::logEvent("Received text from $cell_number", "There is no active conversation currently. Ignoring:  $msg");
+        }
+    }
+
 
     /**
      * Format a phone number
@@ -385,12 +531,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param $number
      * @return int|string|null
      */
-    public function getRecordByNumber($number) {
+    public function getRecordIdByCellNumber($number) {
         $phone_field = $this->getProjectSetting('phone-field');
         $phone_field_event_id = $this->getProjectSetting('phone-field-event-id');
+        $number_in_redcap_format = $this->formatNumber($number, 'redcap');
+
         $fields = [REDCap::getRecordIdField()];
         $filter_logic = (REDCap::isLongitudinal() ? '[' . REDCap::getEventNames(true,true,$phone_field_event_id) . ']' : '') .
-            '[' . $phone_field . '] = "' . $this->formatNumber($number,"redcap") . '"';
+            '[' . $phone_field . '] = "' . $number_in_redcap_format . '"';
 
         $params = [
             'return_format' => 'array',

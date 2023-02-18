@@ -138,7 +138,7 @@ if (true) {
     // $CS->save();
     // var_dump($CS, $CS->getId());
 
-    var_dump($module->getRecordByNumber("+16503803405"));
+    var_dump($module->getRecordIdByCellNumber("+16503803405"));
 
     // 'instrument', 'event_id', 'instance','number',
     // 'start_ts','current_question','reminder_ts','expiry_ts','state'
