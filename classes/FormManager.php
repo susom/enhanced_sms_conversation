@@ -115,6 +115,8 @@ class FormManager {
                     $preset_choices[$k] = $v;
                 }
                 $meta["preset_choices"] = $preset_choices;
+
+
             }
 
             $form_script[$field_name] = $meta;

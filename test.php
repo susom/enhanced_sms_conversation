@@ -98,9 +98,7 @@ if (false) {
 
 }
 
-
-
-//TEST2:   TEST BRANCHING OF RANDOMIZED GROUP
+//TEST2:   TEST FORM_MANAGER BRANCHING OF RANDOMIZED GROUP
 if (false) {
 
     $record_id_control = 1; //CONTROL
@@ -130,6 +128,58 @@ if (false) {
     $foo = $fm->getMessagesAndCurrentQuestion($andy_steps, $record_id_goal_support, $event);
     $module->emDebug("a: for goal support", $foo);
 }
+
+//TEST7: TEST FORM_MANAGER: validateResponse
+if (true) {
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+    $record_id = '1';
+    $current_field = 'wplan';
+
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+//    $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
+
+    $meta = $fm->getCurrentFormStep($current_field, $record_id,$event);
+    $module->emDebug("list is", $meta);
+
+    //XXYJL: why not just use redcap save errors to validate?
+    $msg = "ha";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = "yes";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+
+    $msg = "Yes";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = "no";
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    $msg = 0;
+    $return = $fm->validateResponse($current_field, $msg);
+    $module->emDebug("return  for $msg: ", $return);
+
+    return;
+
+    $data = array(
+        REDCap::getRecordIdField() => $record_id,
+        //'redcap_event_name' => REDCap::getEventNames(true, false, $found_cs->getEventId()),
+        'redcap_event_name'          => $event,
+        //$found_cs->getCurrentField() => $msg,
+        $current_field     => $msg
+    );
+
+    $this->emDebug("saving incoming data", $data);
+    $response = REDCap::saveData('json', json_encode(array($data)));
+    $this->emDebug("saved opt out", $response['errors']);
+}
+
 
 //TEST4: CHECK CONVERSATION PERSISTENCE
 if (false) {

@@ -15,6 +15,7 @@ class ConversationState extends SimpleEmLogObject
      * EM LOG table already has: record, timestamp
      */
     CONST VALID_OBJECT_PARAMETERS = [
+        'record_id',
         'instrument',
         'event_id',
         'instance',
@@ -217,7 +218,6 @@ class ConversationState extends SimpleEmLogObject
 
 
     /** GETTERS */
-
     public function getEventId() {
         return $this->getValue('event_id');
     }

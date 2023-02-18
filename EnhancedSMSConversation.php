@@ -166,11 +166,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             return false;
         }
 
-        // they have opted out of SMS, do nothing
-        if ($sms_opt_out OR $study_withdrawn) {
-            return true;
-        }
-
         //5. Clear out any existing states for this record in the state table
         //   If it comes through the email, then we should start from blank state.
         if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
@@ -191,6 +186,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // Create a new Conversation State
         $CS = new ConversationState($this);
         $CS->setValues([
+            "record_id"     => $record_id,
             "instrument"    => $instrument,
             "event_id"      => $event_id,
             "instance"      => $mc_context['instance'] ?? 1,
@@ -444,6 +440,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 return;
             }
 
+            //this is a real reply
+            $this->handleReply($this->formatNumber($record_id, $from_number, $msg));
 
             // Check if there is an open conversation
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
@@ -465,6 +463,36 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $mr->message($response);
         return $mr;
     }
+
+
+    public function handleReply($record_id, $cell_number, $msg) {
+
+
+
+        if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+
+            $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
+
+            //XXYJL: why not just use redcap save errors to validate?
+            $data = array(
+                REDCap::getRecordIdField() => $record_id,
+                'redcap_event_name' => REDCap::getEventNames(true, false, $found_cs->getEventId()),
+                $found_cs->getCurrentField() => $msg
+            );
+
+            $this->emDebug("saving incoming data", $data);
+            $response = REDCap::saveData('json', json_encode(array($data)));
+            $this->emDebug("saved opt out", $response['errors']);
+
+        } else {
+            $this->emDebug("No ACTIVE conversation for this number $cell_number");
+            //TODO: text back?
+
+            //TODO: logEvent?
+            REDCap::logEvent("Received text from $cell_number", "There is no active conversation currently. Ignoring:  $msg");
+        }
+    }
+
 
     /**
      * Format a phone number
