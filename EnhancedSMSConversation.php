@@ -505,11 +505,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $this->emDebug("We have validated response of $msg as $response to save in field " . $current_field);
 
                 // Save the response to redcap?
-                //$result = $this->saveResponseToRedcap($response);
+                $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
+                if ($result['errors']) {
+                    $this->emError("There were errors while saving $response to $record_id");
+                }
                 // TODO: Handle errors on save - maybea a try catch especially for text-based saves
+                // TODO: Since we are not validating the min/max should we use REDCap save to validate and warn?
 
                 //Since valid get next SMS to send and save field to state
-
                 $sms_to_send_list = $fm->getNextSMS($current_field, $record_id, $event_id);
                 $active_field     = $fm->getActiveQuestion($sms_to_send_list);
 
@@ -548,6 +551,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
     }
 
+
+    public function saveResponseToREDCap($project_id, $record_id, $field_name, $event_id, $response) {
+        $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
+        $result     = REDCap::saveData($project_id, 'array', $data);
+        $this->emDebug("Saved $response", $result);
+        return $result;
+    }
 
     /**
      * Format a phone number
