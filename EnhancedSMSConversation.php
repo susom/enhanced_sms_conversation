@@ -421,11 +421,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             $body = $_POST['Body'];
-            $this->emDebug("**Received :  $body from $record_id");
+            $this->emDebug("Received $body from $record_id");
+
 
             // Check for Opt Out Reply
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
-            $this->emDebug("msg check $opt_msg_check");
             if (in_array($opt_msg_check,self::OPT_OUT_KEYWORDS)) {
                 $this->optOutSMS($record_id);
                 $this->emDebug("Opted out $record_id");
@@ -443,12 +443,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 return;
             }
 
-
             //this is a real reply
             $this->handleReply($record_id, $from_number, $body);
 
             // Check if there is an open conversation
-/**   pushed to handleReply
+            //pushed to handleReply method
+/**
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
                 $this->emDebug("Found conversation " . $CS->getId());
                 $response = "Found conversation " . $CS->getId();
@@ -485,14 +485,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function handleReply($record_id, $cell_number, $msg) {
-
         $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning');
-        $this->emDebug("looking for $cell_number");
 
         //given cell_number, see what is the current state in the ConversationState
         if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
-
-
             $this->emDebug("IN LOG ID: ". $found_cs->getId());
             $this->emDebug("EXPECTING RESPONSES FOR CURRENT FIELD: " . $found_cs->getCurrentField());
 
@@ -501,11 +497,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             //get the TwilioManager as well
             $tm = $this->getTwilioManager($this->getProjectId());
 
+
+
             //according to state table this is the current question
             $current_field = $found_cs->getCurrentField();
             $event_id = $found_cs->getEventId();
-            $event_name = REDCap::getEventNames(true, false, $event_id);
-
 
             // Check the participant response and try to confirm it is a valid response
             if (false !== $response = $fm->validateResponse($current_field, $msg)) {
@@ -522,16 +518,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // TODO: Since we are not validating the min/max should we use REDCap save to validate and warn?
 
                 //Since valid get next SMS to send and save field to state
-                $sms_to_send_list = $fm->getNextSMS($current_field, $record_id, $event_id);
+                $sms_to_send_list = $fm->getNextSMS($current_field, $record_id);
                 $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+                $this->emDebug("ACTIVE FIELD: ". $active_field);
 
-                if (empty($sms_to_send_list)) {
-                    // We are at the end of the survey
-                    // $this->module->setSurveyTimestamp()
-                    $found_cs->setState('COMPLETE');
-                    $found_cs->save();
-                    // TODO: Is there a 'thank you' or is that part of the descriptive...
-                } else {
+
+                //sometimes there are final descriptive coaching messages, but no active field.
+                if (!empty($sms_to_send_list)) {
                     // Send out the next set of messages
                     $found_cs->setCurrentField($active_field);
                     $found_cs->setReminderTs();
@@ -540,15 +533,24 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $sms = $v['field_label'];
                         $tm->sendTwilioMessage($cell_number, $sms);
                     }
-                    // This should save at the end.
                 }
-            } else
+
+                //if active field is empty then set state to complete
+                if (empty($active_field)) {
+                    // We are at the end of the survey
+                    // $this->module->setSurveyTimestamp()
+                    $found_cs->setState('COMPLETE');
+                    $found_cs->save();
+                    // TODO: Is there a 'thank you' or is that part of the descriptive...
+                }
+            } else {
                 // INVALID response
                 $this->emDebug("Response of $msg was not valid for " . $current_field);
                 $nonsense_text_reply = $nonsense_text_warning . " " . $fm->getFieldInstruction($current_field);
                 $found_cs->setReminderTs();
                 $tm->sendTwilioMessage($cell_number, $nonsense_text_reply);
                 //TODO: repeat question
+            }
 
         } else {
             $this->emDebug("No ACTIVE conversation for this number $cell_number");
@@ -624,7 +626,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)));
         }
         $result = empty($results) ? null : key($results);
-        $this->emDebug("++Query for $number", $result);
+        $this->emDebug("Query for $number", $result);
         return $result;
     }
 
