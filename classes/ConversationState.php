@@ -75,7 +75,7 @@ class ConversationState extends SimpleEmLogObject
             );
             $this->module->emDebug("Sent Message to " . $this->getCellNumber(), $message, $sms);
             // TODO: Check for errors and opt out for error 30004
-            // https://www.twilio.com/docs/api/errors/30004
+            // https://www.twilio.com/docs/api/errors/30004 or maybe https://www.twilio.com/docs/api/errors/21610
         }
 
         if ($current_field !== $new_current_field) {
