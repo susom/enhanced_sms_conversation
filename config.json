@@ -54,6 +54,16 @@
         "pages/inbound"
     ],
 
+    "crons": [
+        {
+            "cron_name": "sms_conv_reminder",
+            "cron_description": "This cron will run once a minute to check whether a reminder or expiry needs to go out to any existing conversations",
+            "method": "scanConversationsCron",
+            "cron_frequency": "60",
+            "cron_max_run_time": "3600"
+        }
+    ],
+
     "enable-no-auth-logging": true,
 
     "enable-email-hook-in-system-contexts":  true,
