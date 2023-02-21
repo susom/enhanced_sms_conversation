@@ -21,10 +21,11 @@ class ConversationState extends SimpleEmLogObject
         'instance',
         'cell_number',
         'current_field',
-        'reminder_ts',  // each time participant responds, we re-set the reminder time
-        'expiry_ts',    // each time a participant responds, we re-calc the expiry time
-        'state',        // ACTIVE (created) -> EXPIRED / COMPLETE / ERROR?
-        'note'          // A place to log any notes about the CS
+        'reminder_ts',      // each time participant responds, we re-set the reminder time
+        'expiry_ts',        // each time a participant responds, we re-calc the expiry time
+        'last_response_ts', //time of last reponse from participant
+        'state',            // ACTIVE (created) -> EXPIRED / COMPLETE / ERROR?
+        'note'              // A place to log any notes about the CS
     ];
 
     CONST OBJECT_NAME = 'ConversationState';   // This is the 'name' of the object and stored in the message column
@@ -100,11 +101,12 @@ class ConversationState extends SimpleEmLogObject
         }
     }
 
-    public function setReminderTs() {
-        $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes');
-        if (!empty($default_reminder)) {
-            $this->setValue('reminder_ts', time() + $default_reminder);
+    public function setReminderTs($ts = null) {
+        if (empty($ts)) {
+            $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes');
+            $ts = time() + $default_reminder;
         }
+        $this->setValue('reminder_ts', $ts);
     }
 
 
@@ -145,7 +147,7 @@ class ConversationState extends SimpleEmLogObject
         $response = "";
 
         $now = time();
-        $expiry_ts = $this->getExpirtyTs();
+        $expiry_ts = $this->getExpiryTs();
 
         if (!empty($expiry_ts) && $now > $expiry_ts) {
             // This conversation has expired
@@ -240,8 +242,16 @@ class ConversationState extends SimpleEmLogObject
         return $this->getValue('record_id');
     }
 
-    public function getExpirtyTs() {
+    public function getExpiryTs() {
         return $this->getValue('expiry_ts');
+    }
+
+    public function getReminderTs() {
+        return $this->getValue('reminder_ts');
+    }
+
+    public function getLastResponseTs() {
+        return $this->getValue('last_response_ts');
     }
 
     public function getState()
@@ -263,6 +273,12 @@ class ConversationState extends SimpleEmLogObject
 
     public function setCurrentField($field) {
         $this->setValue('current_field', $field);
+    }
+
+
+    public function setLastResponseTs($ts = null) {
+        if (empty($ts)) $ts = time();
+        return $this->setValue('last_response_ts', $ts);
     }
 
 
@@ -343,6 +359,36 @@ class ConversationState extends SimpleEmLogObject
         }
         return $result;
     }
+
+
+
+    /**
+     * Load the active conversation by phone number
+     * If there is more than one active conversation for a given cell number, it marks the older ones as ERROR
+     * @param EnhancedSMSConversation $module
+     * @param int $timestamp
+     * @return array|false ConversationStates
+     * @throws \Exception
+     */
+    public static function getActiveConversationsNeedingAttention($module, $project_id, $timestamp = null) {
+        if (empty($timestamp)) $timestamp = time();
+        $type = self::OBJECT_NAME;
+        $state = "ACTIVE";
+        $filter_clause = "state = ? and project_id = ? and (expiry_ts < ? or reminder_ts < ?)";
+        $objs = self::queryObjects($module, $type, $filter_clause, [$state, $project_id, $timestamp, $timestamp]);
+
+        $count = count($objs);
+        $module->emDebug("Found $count hits with $filter_clause");
+        if ($count == 0) {
+            // None found, return false;
+            $result = false;
+        } else {
+            $result = $objs;
+        }
+        return $result;
+    }
+
+
 
 
 }

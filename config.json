@@ -119,7 +119,7 @@
             "type": "text"
         },
         {
-            "key": "missing-text-warning",
+            "key": "reminder-text-warning",
             "name": "<b>Missing Text Reminder</b><br>After the allowed reminder time has elapsed, this message will be included in the reminder message in this format. <br> <THIS MESSAGE><ORIGINAL TEXT><TEXTING INSTRUCTIONS>",
             "required": true,
             "type": "text"

@@ -11,6 +11,7 @@ require_once "classes/TwilioManager.php";
 use \REDCap;
 use \Twilio\TwiML\MessagingResponse;
 use \Twilio\Rest\Client;
+use Twilio\TwiML\Voice\Conversation;
 
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
@@ -24,7 +25,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     const ACTION_TAG_PREFIX = "@ESC";
     const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
 
+    const LAST_RESPONSE_EXPIRY_DELAY_SEC = 180; // If it has been less than this time since a response, do not expire a conversation yet.
+
     const VALID_SURVEY_TIMESTAMP_STAGES = ['completion_time','start_time', 'first_submit_time'];
+
+    const OPT_OUT_KEYWORDS = [ 'stop', 'optout'];
 
     public function __construct() {
         parent::__construct();
@@ -336,14 +341,19 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
         }
 
-        $data = array(
-            REDCap::getRecordIdField() => $record_id,
-            'redcap_event_name' => REDCap::getEventNames(true, false, $optout_field_event_id),
-            $optout_field. "___1" => 1
-        );
+        // $data = array(
+        //     REDCap::getRecordIdField() => $record_id,
+        //     'redcap_event_name' => REDCap::getEventNames(true, false, $optout_field_event_id),
+        //     $optout_field. "___1" => 1
+        // );
+        //
+        // $this->emDebug("saved opt out", $data);
+        // $response = REDCap::saveData('json', json_encode(array($data)));
 
-        $this->emDebug("saved opt out", $data);
-        $response = REDCap::saveData('json', json_encode(array($data)));
+        // Array method
+        $data = [ $record_id => [ $optout_field_event_id => [ $optout_field[1] => 1 ] ] ];
+        $response = REDCap::saveData('array', $data);
+
         $this->emDebug("saved opt out", $response['errors']);
         if (empty($response['errors'])) {
             return true;
@@ -405,7 +415,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             $record_id = $this->getRecordIdByCellNumber($from_number);
 
-
             if (empty($record_id)) {
                 REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
                 return;
@@ -414,31 +423,47 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $body = $_POST['Body'];
             $this->emDebug("Received $body from $record_id");
 
-            $msg = null;
-            switch (strtoupper($body)) {
-                case null:
-                case '':
-                    $msg = "Received an empty text from ". $from_number;
-                    break;
-                case 'STOP':
-                case 'OPT-OUT':
-                    if ($this->optOutSMS($record_id)) {
-                        $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record_id";
-                    } else {
-                        $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
-                    }
-                    break;
-            }
 
-            //No need to check state for this message. Log event and return
-            if ($msg) {
-                REDCap::logEvent("Received text from $from_number", $msg);
+            // Check for Opt Out Reply
+            $opt_msg_check = preg_replace( '/[\W]/', '', lowercase($body));
+            if (in_array($opt_msg_check,self::OPT_OUT_KEYWORDS)) {
+                $this->optOutSMS($record_id);
+                $this->emDebug("Opted out $record_id");
                 return;
             }
 
+            // $msg = null;
+            // switch (strtoupper($body)) {
+            //     case null:
+            //     case '':
+            //         $msg = "Received an empty text from ". $from_number;
+            //         break;
+            //     case 'STOP':
+            //     case 'OPT-OUT':
+            //     case 'OPTOUT':
+            //     case "OPT OUT":
+            //         if ($this->optOutSMS($record_id)) {
+            //             $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record_id";
+            //         } else {
+            //             $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
+            //         }
+            //         break;
+            // }
+
+            // No need to check state for this message. Log event and return
+            // if ($msg) {
+            //     REDCap::logEvent("Received text from $from_number", $msg);
+            //     return;
+            // }
+
             // TODO: Get opt-out-sms status for number
-            if ($this->isWithdrawn($record) OR $this->isOptedOut($record)) {
-                REDCap::logEvent("Received text from $record", "Received:  $body. No further action since withdrawn");
+            if ($this->isWithdrawn($record_id)) {
+                REDCap::logEvent("Received text from withdrawn participant", "Received:  $body. No further action since withdrawn","",$record_id);
+                return;
+            }
+            // TODO: Get opt-out-sms status for number
+            if ($this->isOptedOut($record_id)) {
+                REDCap::logEvent("Received text from opted-out participant", "Received:  $body. No further action since opted out","",$record_id);
                 return;
             }
 
@@ -632,21 +657,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     }
 
 
-
-
-
-
-    /**
-     * Handle inbound Twilio messages
-     * @return void
-     */
-    public function parseInbound() {
-
-//        $CS = ConversationState::findByPhone($phone);
-
-    }
-
-
     public function cronScanConversationState( $cronParameters ) {
         //get the current Active crons in cron table where
         // No Project Context here
@@ -663,9 +673,46 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             $this->emDebug("Running cron on pid $project_id");
 
-            // Step 1: Active where ts > rem or ts > expiry
+            $timestamp = time();
 
-            // If exp, set expired - delivery standard exp message
+            foreach ($CS = ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp)) {
+                /** @var $CS ConversationState **/
+                if ($CS->getExpiryTs() < $timestamp ) {
+                    // Is expired?
+                    if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
+                        // Participant responded recently, let's not expire the conversation yet
+                        $this->emDebug("Skipping expiration due to recent response", $timestamp, $CS->getLastResponseTs());
+                    } else {
+                        // Expire it!
+                        $CS->expireConversation();
+
+                        // TODO: Customize the expiration message based on survey with action-tag
+                        $expiration_message = "You must be busy. We will check in next time.";
+                        $result = $this->getTwilioManager()->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
+                        $this->emDebug("Send expiration message", $result);
+
+                        \REDCap::logEvent("Expired Conversation " . $CS->getId(), "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+                    }
+                } elseif($CS->getReminderTs() < $timestamp) {
+                    // Send a reminder
+                    $reminder_test_warning = $this->getProjectSetting('reminder-text-warning', $project_id);
+                    $current_field = $CS->getCurrentField();
+                    $FM = new FormManager($this,$CS->getInstrument(),$CS->getEventId(),$project_id);
+                    $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());
+                    $message = $FM->getActiveQuestion($current_step);
+                    $instructions = $FM->getFieldInstruction($current_step);
+
+                    $outbound_sms = implode("\n", array_filter([$reminder_test_warning, $message, $instructions]));
+                    $result = $this->getTwilioManager()->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
+                    $this->emDebug("Send reminder message", $result);
+                    \REDCap::logEvent("Reminder sent for $current_field (#" . $CS->getId() . ")", "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+                    $CS->setReminderTs($CS->getExpiryTs());
+                    $CS->save();
+
+                } else {
+                    $this->emDebug("This shouldn't happen", $timestamp, $CS);
+                }
+            }
 
 
             // Create the API URL to this project

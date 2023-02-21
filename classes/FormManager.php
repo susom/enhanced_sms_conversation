@@ -156,7 +156,7 @@ class FormManager {
      * @param $event_id
      * @return void
      */
-    public function getNextSMS($current_question, $record_id, $event_id) {
+    public function getNextSMS($current_question, $record_id) {
         //if $current_question is blank, send the first sms applicable for this record in this event_id
 
         $next_step_metadata = $this->getNextStepInScript($current_question);
@@ -167,7 +167,7 @@ class FormManager {
             return null;
         }
 
-        return $this->getCurrentFormStep($next_step, $record_id, $event_id);
+        return $this->getCurrentFormStep($next_step, $record_id);
     }
 
     /**
@@ -201,16 +201,15 @@ class FormManager {
      *
      * @param $current_question String
      * @param $record_id
-     * @param $event_id
      * @return mixed
      */
-    public function getCurrentFormStep($current_question, $record_id, $event_id) {
+    public function getCurrentFormStep($current_question, $record_id) {
         $this->module->emDebug("Current question: ". $current_question);
         $container = array();
 
 
         // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
-        $container = $this->recurseCurrentSteps($current_question, $record_id, $event_id, $container);
+        $container = $this->recurseCurrentSteps($current_question, $record_id, $container);
 
         return $container;
     }
@@ -224,19 +223,17 @@ class FormManager {
      *
      * @param $current_step
      * @param $record_id
-     * @param $event_id
      * @param $container
      * @return mixed
      */
-    public function recurseCurrentSteps($current_step, $record_id, $event_id, $container) {
+    public function recurseCurrentSteps($current_step, $record_id, $container) {
         $this_step          = $this->form_script[$current_step]["field_name"];
         $field_type         = $this->form_script[$current_step]["field_type"];
         $branching_logic    = $this->form_script[$current_step]["branching_logic"];
 
-
         // IS CURRENT STEP VALID
-        if ((!empty($branching_logic) ) && ($record_id)  && ($event_id) ) {
-            $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $event_id);
+        if ((!empty($branching_logic) ) && ($record_id)  && ($this->event_id) ) {
+            $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $this->event_id);
             if ($valid) {
                 array_push($container, $this->form_script[$current_step]);
             }
@@ -252,7 +249,7 @@ class FormManager {
             //this is the last
             return $container;
         } else {
-            $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $event_id, $container);
+            $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $container);
         }
 
         return $container;
