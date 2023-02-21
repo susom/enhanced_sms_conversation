@@ -400,7 +400,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // TODO: Validate message as Twilio
         try {
             // Confirm to number matches configured twilio number
-            $twilio_number = $this->getProjectSetting('twilio-number');
+            $twilio_number = $this->formatNumber($this->getProjectSetting('twilio-number'));
             if ($_POST['To'] !== $twilio_number) {
                 $error = "Received inbound message addressed to " . $_POST['To'] . " when project is configured to use $twilio_number";
                 $this->emError($error);
@@ -421,40 +421,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             $body = $_POST['Body'];
-            $this->emDebug("Received $body from $record_id");
-
+            $this->emDebug("**Received :  $body from $record_id");
 
             // Check for Opt Out Reply
-            $opt_msg_check = preg_replace( '/[\W]/', '', lowercase($body));
+            $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
+            $this->emDebug("msg check $opt_msg_check");
             if (in_array($opt_msg_check,self::OPT_OUT_KEYWORDS)) {
                 $this->optOutSMS($record_id);
                 $this->emDebug("Opted out $record_id");
                 return;
             }
-
-            // $msg = null;
-            // switch (strtoupper($body)) {
-            //     case null:
-            //     case '':
-            //         $msg = "Received an empty text from ". $from_number;
-            //         break;
-            //     case 'STOP':
-            //     case 'OPT-OUT':
-            //     case 'OPTOUT':
-            //     case "OPT OUT":
-            //         if ($this->optOutSMS($record_id)) {
-            //             $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record_id";
-            //         } else {
-            //             $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
-            //         }
-            //         break;
-            // }
-
-            // No need to check state for this message. Log event and return
-            // if ($msg) {
-            //     REDCap::logEvent("Received text from $from_number", $msg);
-            //     return;
-            // }
 
             // TODO: Get opt-out-sms status for number
             if ($this->isWithdrawn($record_id)) {
@@ -467,10 +443,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 return;
             }
 
+
             //this is a real reply
-            $this->handleReply($this->formatNumber($record_id, $from_number, $body));
+            $this->handleReply($record_id, $from_number, $body);
 
             // Check if there is an open conversation
+/**   pushed to handleReply
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
                 $this->emDebug("Found conversation " . $CS->getId());
                 $response = "Found conversation " . $CS->getId();
@@ -478,7 +456,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             } else {
                 $this->emDebug("No conversation for this number");
                 $response = "No conversations right now";
+
             }
+ */
 
         } catch (\Exception $e) {
             $this->emError("Exception thrown: " . $e->getMessage(), $e->getTraceAsString());
@@ -505,10 +485,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function handleReply($record_id, $cell_number, $msg) {
+
         $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning');
+        $this->emDebug("looking for $cell_number");
 
         //given cell_number, see what is the current state in the ConversationState
         if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+
+
             $this->emDebug("IN LOG ID: ". $found_cs->getId());
             $this->emDebug("EXPECTING RESPONSES FOR CURRENT FIELD: " . $found_cs->getCurrentField());
 
@@ -516,8 +500,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
             //get the TwilioManager as well
             $tm = $this->getTwilioManager($this->getProjectId());
-
-
 
             //according to state table this is the current question
             $current_field = $found_cs->getCurrentField();
@@ -560,14 +542,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     }
                     // This should save at the end.
                 }
-            } else {
+            } else
                 // INVALID response
                 $this->emDebug("Response of $msg was not valid for " . $current_field);
                 $nonsense_text_reply = $nonsense_text_warning . " " . $fm->getFieldInstruction($current_field);
                 $found_cs->setReminderTs();
                 $tm->sendTwilioMessage($cell_number, $nonsense_text_reply);
                 //TODO: repeat question
-            }
 
         } else {
             $this->emDebug("No ACTIVE conversation for this number $cell_number");
@@ -643,7 +624,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)));
         }
         $result = empty($results) ? null : key($results);
-        $this->emDebug("Query for $number", $result);
+        $this->emDebug("++Query for $number", $result);
         return $result;
     }
 
@@ -675,7 +656,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             $timestamp = time();
 
-            foreach ($CS = ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp)) {
+            foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
                 if ($CS->getExpiryTs() < $timestamp ) {
                     // Is expired?
