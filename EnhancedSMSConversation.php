@@ -422,8 +422,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     break;
                 case 'STOP':
                 case 'OPT-OUT':
-                    if ($this->optOutSMS($record)) {
-                        $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record";
+                    if ($this->optOutSMS($record_id)) {
+                        $msg = "Received an OPTOUT/STOP message from $from_number. Texts will no longer be sent to this record: $record_id";
                     } else {
                         $msg = "Received an OPTOUT/STOP message from $from_number but was unable to automatically save that information. Please consult admin.";
                     }
@@ -647,8 +647,43 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     }
 
 
-    public function scanConversationsCron( $cronParameters ) {
+    public function cronScanConversationState( $cronParameters ) {
         //get the current Active crons in cron table where
+        // No Project Context here
+
+        // Find all the projects that are using this EM
+        $enabled = \ExternalModules::getEnabledProjects($this->PREFIX);
+        while ($row = $enabled->fetch_assoc()) {
+
+            // Check for messages to send for each project using this EM
+            $project_id = $row['project_id'];
+
+            // Temp set context to current project
+            $_GET['pid'] = $project_id;
+
+            $this->emDebug("Running cron on pid $project_id");
+
+            // Step 1: Active where ts > rem or ts > expiry
+
+            // If exp, set expired - delivery standard exp message
+
+
+            // Create the API URL to this project
+//            $msgCheckURL = $this->getUrl('pages/SendMessages.php?pid=' . $project_id, true, true);
+//            $this->emDebug("Calling SendMessage cron for pid $project_id at " . $msgCheckURL);
+//            $ts_start = microtime(true);
+//            try {
+//                $client = new \GuzzleHttp\Client;
+//                $res = $client->request('GET', $msgCheckURL, [
+//                    'synchronous' => true
+//                ]);
+//                $this->emDebug("Guzzle Response", $res->getBody()->getContents());
+//            } catch (\Exception $ex) {
+//                $this->emError("Exception throw when instantiating Guzzle with error: " . $ex->getMessage());
+//            }
+//            $ts_end = microtime(true) - $ts_start;
+//            $this->emDebug("Cron for project $project_id took " . $ts_end . " seconds");
+        }
 
     }
 
