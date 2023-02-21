@@ -405,12 +405,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             $record_id = $this->getRecordIdByCellNumber($from_number);
 
-            if (empty($record)) {
+
+            if (empty($record_id)) {
                 REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
                 return;
             }
 
             $body = $_POST['Body'];
+            $this->emDebug("Received $body from $record_id");
 
             $msg = null;
             switch (strtoupper($body)) {
@@ -441,7 +443,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             //this is a real reply
-            $this->handleReply($this->formatNumber($record_id, $from_number, $msg));
+            $this->handleReply($this->formatNumber($record_id, $from_number, $body));
 
             // Check if there is an open conversation
             if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
@@ -646,6 +648,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
     public function scanConversationsCron( $cronParameters ) {
+        //get the current Active crons in cron table where
 
     }
 
