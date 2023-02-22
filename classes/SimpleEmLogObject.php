@@ -31,7 +31,7 @@ class SimpleEmLogObject
     const LOG_CHANGES = true;
     public $change_log = [];
 
-    const MAIN_COLUMNS = ['log_id', 'timestamp', 'ui_id','ip','project_id','record', 'message'];
+    const MAIN_COLUMNS = ['log_id', 'timestamp', 'ui_id','ip','project_id','record_id', 'message'];
     protected const UPDATABLE_COLUMNS = ['record', 'project_id', 'timestamp', 'message'];
 
 
@@ -67,10 +67,10 @@ class SimpleEmLogObject
             if ($row = $q->fetch_assoc()) {
                 foreach ($row as $key=>$val) {
                     if (property_exists($this, $key)) {
-                        $this->module->emDebug("Setting property $key to $val");
+//                        $this->module->emDebug("Setting property $key to $val");
                         $this->$key = $val;
                     } else {
-                        $this->module->emDebug("Setting object_parameter $key to $val");
+//                        $this->module->emDebug("Setting object_parameter $key to $val");
                         $this->object_parameters[$key] = $val;
                     }
                 }

@@ -660,7 +660,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
-                if ($CS->getExpiryTs() < $timestamp ) {
+                $module->emDebug("working on ID: ". $CS->getId());
+                if ($CS->getExpiryTs() > $timestamp ) {
                     // Is expired?
                     if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
                         // Participant responded recently, let's not expire the conversation yet
@@ -669,24 +670,30 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Expire it!
                         $CS->expireConversation();
 
-                        // TODO: Customize the expiration message based on survey with action-tag
-                        $expiration_message = "You must be busy. We will check in next time.";
-                        $result = $this->getTwilioManager()->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
+                        if ($CS->getInstrument()=='thursday') {
+                            $expiration_message =  $module->getProjectSetting('thur-expiry-text', $project_id);
+                        } else {
+                            $expiration_message =  $module->getProjectSetting('sun-expiry-text', $project_id);
+                        }
+
+                        $result = $this->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
                         $this->emDebug("Send expiration message", $result);
 
                         \REDCap::logEvent("Expired Conversation " . $CS->getId(), "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
                     }
-                } elseif($CS->getReminderTs() < $timestamp) {
+                } elseif($CS->getReminderTs() > $timestamp) {
                     // Send a reminder
                     $reminder_test_warning = $this->getProjectSetting('reminder-text-warning', $project_id);
                     $current_field = $CS->getCurrentField();
                     $FM = new FormManager($this,$CS->getInstrument(),$CS->getEventId(),$project_id);
                     $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());
-                    $message = $FM->getActiveQuestion($current_step);
-                    $instructions = $FM->getFieldInstruction($current_step);
+                    $active_label = $FM->getActiveQuestion($current_step, true);
+                    $active_variable = $FM->getActiveQuestion($current_step);
 
-                    $outbound_sms = implode("\n", array_filter([$reminder_test_warning, $message, $instructions]));
-                    $result = $this->getTwilioManager()->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
+                    $instructions = $FM->getFieldInstruction($active_variable);
+
+                    $outbound_sms = implode("\n", array_filter([$reminder_test_warning, $active_label, $instructions]));
+                    $result = $this->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
                     $this->emDebug("Send reminder message", $result);
                     \REDCap::logEvent("Reminder sent for $current_field (#" . $CS->getId() . ")", "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
                     $CS->setReminderTs($CS->getExpiryTs());

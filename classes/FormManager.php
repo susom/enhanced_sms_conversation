@@ -86,6 +86,7 @@ class FormManager {
                 "field_type"        => $field_type,
                 "field_label"       => $field_label,
                 "branching_logic"   => $branching_logic,
+                "instructions"      => ''
             ];
 
             $valid_types = array_merge(
@@ -178,11 +179,14 @@ class FormManager {
      * @param $sms_list
      * @return String
      */
-    public function getActiveQuestion($sms_list) {
+    public function getActiveQuestion($sms_list, $label = false) {
         //return the first non-descriptive field
         foreach ($sms_list as $key => $value) {
             if ($value['field_type'] !== 'descriptive') {
                 $result = $value['field_name'];
+                if ($label) {
+                    $result = $value['field_label'];
+                }
                 return $result;
             }
         }
