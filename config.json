@@ -119,6 +119,18 @@
             "type": "text"
         },
         {
+            "key": "thur-expiry-text",
+            "name": "<b>Thursday Expiry Text</b><br>After the allowed expiry time for the Thursday survey has elapsed, this message will be sent to the user.",
+            "required": true,
+            "type": "text"
+        },
+        {
+            "key": "sun-expiry-text",
+            "name": "<b>Sunday Expiry Text</b><br>After the allowed expiry time for the Sunday survey has elapsed, this message will be sent to the user.",
+            "required": true,
+            "type": "text"
+        },
+        {
             "key": "reminder-text-warning",
             "name": "<b>Missing Text Reminder</b><br>After the allowed reminder time has elapsed, this message will be included in the reminder message in this format. <br> <THIS MESSAGE><ORIGINAL TEXT><TEXTING INSTRUCTIONS>",
             "required": true,

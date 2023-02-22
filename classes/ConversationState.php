@@ -374,11 +374,12 @@ class ConversationState extends SimpleEmLogObject
         if (empty($timestamp)) $timestamp = time();
         $type = self::OBJECT_NAME;
         $state = "ACTIVE";
-        $filter_clause = "state = ? and project_id = ? and (expiry_ts < ? or reminder_ts < ?)";
+        $filter_clause = "state = ? and project_id = ? and (expiry_ts > ? or reminder_ts > ?)";
         $objs = self::queryObjects($module, $type, $filter_clause, [$state, $project_id, $timestamp, $timestamp]);
 
         $count = count($objs);
         $module->emDebug("Found $count hits with $filter_clause");
+        $module->emDebug("with STATE: $state / ProjectID: $project_id, TIMESTAMP: $timestamp");
         if ($count == 0) {
             // None found, return false;
             $result = false;

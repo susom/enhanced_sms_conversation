@@ -15,6 +15,73 @@ echo "<br><br>This is the TRAM innbound link: <br>".$url;
 
 $module->emDebug("INBOUND: $url");
 
+//TEST9
+if (true) {
+
+    /**
+     * looking for 1677088959
+     * record_id = 4
+     * [expiry_ts] => 1677088564
+     * [reminder_ts] => 1677088444
+     *
+     *
+     */
+
+    $timestamp = time();
+    $module->emDebug("TIMESTAMP: $timestamp");
+
+    foreach (ConversationState::getActiveConversationsNeedingAttention($module, $project_id, $timestamp) as $CS) {
+        /** @var $CS ConversationState **/
+        $module->emDebug("working on ID: ". $CS->getId());
+        if ($CS->getExpiryTs() > $timestamp ) {
+            // Is expired?
+            if ($timestamp - $CS->getLastResponseTs() <= EnhancedSMSConversation::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
+                // Participant responded recently, let's not expire the conversation yet
+                $this->emDebug("Skipping expiration due to recent response", $timestamp, $CS->getLastResponseTs());
+            } else {
+                // Expire it!
+                $CS->expireConversation();
+
+                // TODO: Customize the expiration message based on survey with action-tag
+                if ($CS->getInstrument()=='thursday') {
+                    $expiration_message =  $module->getProjectSetting('thur-expiry-text', $project_id);
+                } else {
+                    $expiration_message =  $module->getProjectSetting('sun-expiry-text', $project_id);
+                }
+
+                $result = $module->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
+                $module->emDebug("Send expiration message", $result);
+
+                \REDCap::logEvent("Expired Conversation " . $CS->getId(), "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+            }
+        } elseif($CS->getReminderTs() > $timestamp) {
+            // Send a reminder
+            $reminder_test_warning = $module->getProjectSetting('reminder-text-warning', $project_id);
+            $current_field = $CS->getCurrentField();
+            $FM = new FormManager($module,$CS->getInstrument(),$CS->getEventId(),$project_id);
+            $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());
+            $active_label = $FM->getActiveQuestion($current_step, true);
+            $active_variable = $FM->getActiveQuestion($current_step);
+            $module->emDebug("getting instrudtions for $active_variable", $active_label);
+
+            $instructions = $FM->getFieldInstruction($active_variable);
+
+            $outbound_sms = implode("\n", array_filter([$reminder_test_warning, $active_label, $instructions]));
+            $result = $module->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
+            $module->emDebug("Send reminder message", $result);
+            \REDCap::logEvent("Reminder sent for $current_field (#" . $CS->getId() . ")", "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+            $CS->setReminderTs($CS->getExpiryTs());
+            $CS->save();
+
+        } else {
+            $module->emDebug("This shouldn't happen", $timestamp, $CS);
+        }
+    }
+}
+
+
+
+
 //TEST0
 if (false) {
     $record_id = 1;
@@ -299,7 +366,7 @@ if (false) {
 
 
 //TEST8: TEST NONSENSE ? MISSING INSTRUCTIONS
-if (true) {
+if (false) {
     $record_id = 1;
     $form = "thursday";
     $event = "week_1_sms_arm_1";
