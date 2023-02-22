@@ -660,7 +660,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
-                $module->emDebug("working on ID: ". $CS->getId());
+                $this->emDebug("working on ID: ". $CS->getId());
                 if ($CS->getExpiryTs() > $timestamp ) {
                     // Is expired?
                     if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
@@ -671,9 +671,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $CS->expireConversation();
 
                         if ($CS->getInstrument()=='thursday') {
-                            $expiration_message =  $module->getProjectSetting('thur-expiry-text', $project_id);
+                            $expiration_message =  $this->getProjectSetting('thur-expiry-text', $project_id);
                         } else {
-                            $expiration_message =  $module->getProjectSetting('sun-expiry-text', $project_id);
+                            $expiration_message =  $this->getProjectSetting('sun-expiry-text', $project_id);
                         }
 
                         $result = $this->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
