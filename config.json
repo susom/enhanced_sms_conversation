@@ -59,7 +59,7 @@
             "cron_name": "esms_scan_conversation_state",
             "cron_description": "This cron will run once a minute to check whether a reminder or expiry needs to go out to any existing conversations",
             "method": "cronScanConversationState",
-            "cron_frequency": "60",
+            "cron_frequency": "180",
             "cron_max_run_time": "3600"
         }
     ],
@@ -193,17 +193,6 @@
             "required": false,
             "type": "checkbox"
         }
-    ],
-
-    "crons": [
-        {
-            "cron_name": "enhanced_sms_conversation_cron",
-            "cron_description": "This cron evaluates open conversations for reminders, expiration, etc.",
-            "method": "scanConversationsCron",
-            "cron_frequency": "180",
-            "cron_max_run_time": "150"
-        }
-
     ],
 
     "compatibility": {
