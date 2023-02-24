@@ -658,7 +658,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
                 $this->emDebug("working on ID: ". $CS->getId());
-                if ($CS->getExpiryTs() > $timestamp ) {
+                if ($CS->getExpiryTs() < $timestamp ) {
                     // Is expired?
                     if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
                         // Participant responded recently, let's not expire the conversation yet
@@ -678,7 +678,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                         \REDCap::logEvent("Expired Conversation " . $CS->getId(), "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
                     }
-                } elseif($CS->getReminderTs() > $timestamp) {
+                } elseif($CS->getReminderTs() < $timestamp) {
                     // Send a reminder
                     $reminder_test_warning = $this->getProjectSetting('reminder-text-warning', $project_id);
                     $current_field = $CS->getCurrentField();

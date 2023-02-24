@@ -97,14 +97,14 @@ class ConversationState extends SimpleEmLogObject
     public function setExpiryTs() {
         $default_expiry = $this->module->getProjectSetting('default-conversation-expiry-minutes');
         if (!empty($default_expiry)) {
-            $this->setValue('expiry_ts', time() + $default_expiry);
+            $this->setValue('expiry_ts', time() + ($default_expiry * 60));
         }
     }
 
     public function setReminderTs($ts = null) {
         if (empty($ts)) {
             $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes');
-            $ts = time() + $default_reminder;
+            $ts = time() + ($default_reminder * 60);
         }
         $this->setValue('reminder_ts', $ts);
     }
@@ -374,7 +374,7 @@ class ConversationState extends SimpleEmLogObject
         if (empty($timestamp)) $timestamp = time();
         $type = self::OBJECT_NAME;
         $state = "ACTIVE";
-        $filter_clause = "state = ? and project_id = ? and (expiry_ts > ? or reminder_ts > ?)";
+        $filter_clause = "state = ? and project_id = ? and (expiry_ts < ? or reminder_ts < ?)";
         $objs = self::queryObjects($module, $type, $filter_clause, [$state, $project_id, $timestamp, $timestamp]);
 
         $count = count($objs);
