@@ -644,15 +644,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         //get the current Active crons in cron table where
         // No Project Context here
 
-        // Find all the projects that are using this EM
-        $enabled = \ExternalModules::getEnabledProjects($this->PREFIX);
-        while ($row = $enabled->fetch_assoc()) {
+        $originalPid = $_GET['pid'];
 
-            // Check for messages to send for each project using this EM
-            $project_id = $row['project_id'];
-
-            // Temp set context to current project
+        foreach($this->getProjectsWithModuleEnabled() as $project_id){
             $_GET['pid'] = $project_id;
+
+            // Project specific method calls go here.
 
             $this->emDebug("Running cron on pid $project_id");
 
@@ -704,23 +701,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 }
             }
 
-
-            // Create the API URL to this project
-//            $msgCheckURL = $this->getUrl('pages/SendMessages.php?pid=' . $project_id, true, true);
-//            $this->emDebug("Calling SendMessage cron for pid $project_id at " . $msgCheckURL);
-//            $ts_start = microtime(true);
-//            try {
-//                $client = new \GuzzleHttp\Client;
-//                $res = $client->request('GET', $msgCheckURL, [
-//                    'synchronous' => true
-//                ]);
-//                $this->emDebug("Guzzle Response", $res->getBody()->getContents());
-//            } catch (\Exception $ex) {
-//                $this->emError("Exception throw when instantiating Guzzle with error: " . $ex->getMessage());
-//            }
-//            $ts_end = microtime(true) - $ts_start;
-//            $this->emDebug("Cron for project $project_id took " . $ts_end . " seconds");
         }
+
+        // Put the pid back the way it was before this cron job (likely doesn't matter, but is good housekeeping practice)
+        $_GET['pid'] = $originalPid;
+        $this->emDebug("cron completed.");
+
+        return "The \"{$cronParameters['cron_description']}\" cron job completed successfully.";
 
     }
 
