@@ -446,6 +446,18 @@ class FormManager {
         }
 
         if ($choices = $meta['preset_choices']) {
+
+            // Check for boolean aliases first
+            if (in_array($meta['field_type'], ["yesno","truefalse"])) {
+                if ( isset(self::BOOLEAN_ALIASES[$input]) ) {
+                    $alias = self::BOOLEAN_ALIASES[$input];
+                    if (in_array($alias, array_keys($choices))) {
+                        $this->module->emDebug("Matched $input to alias $alias which is valid for $field_name");
+                        return $alias;
+                    }
+                }
+            }
+
             // Try to find a key-match
             if (in_array($input, array_keys($choices))) {
                 // Found a match to a key in the choices
@@ -460,16 +472,6 @@ class FormManager {
                 return $key;
             }
 
-            // Check for boolean aliases
-            if (in_array($meta['field_type'], ["yesno","truefalse"])) {
-                if ( isset(self::BOOLEAN_ALIASES[$input]) ) {
-                    $alias = self::BOOLEAN_ALIASES[$input];
-                    if (in_array($alias, array_keys($choices))) {
-                        $this->module->emDebug("Matched $input to alias $alias which is valid for $field_name");
-                        return $alias;
-                    }
-                }
-            }
         } elseif ($meta['field_type'] == "text") {
             // TODO - validate TEXT!
             return $input;
