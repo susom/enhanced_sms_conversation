@@ -47,7 +47,7 @@ class TwilioManager {
         $this->getTwilioClient();
 
         $to = $this->module->formatNumber($to_number);
-        // $this->emDebug("Formatting to number from $to_number to $to");
+        $this->module->emDebug("Formatting to number from $to_number to $to");
 
         try {
             $sms = $this->twilio_client->account->messages->sendMessage(
@@ -57,12 +57,13 @@ class TwilioManager {
             );
             if (!empty($sms->error_code) || !empty($sms->error_message)) {
                 $error_message = "Error #" . $sms->error_code . " - " . $sms->error_message;
-                $this->emError($error_message);
+                $this->module->emError($error_message);
                 throw new Exception ($error_message);
             }
         } catch (\Exception $e) {
-            $this->emError("Exception when sending sms: " . $e->getMessage());
-            //TODO: log event
+            REDCap::logEvent("Error sending Twilio message from number $to_number", $e->getMessage());
+            $this->module->emError("Exception when sending sms: " . $e->getMessage());
+
             return false;
         }
         return true;

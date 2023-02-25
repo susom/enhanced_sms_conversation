@@ -14,9 +14,17 @@ $url = $module->getUrl('pages/inbound.php', true, true);
 echo "<br><br>This is the TRAM innbound link: <br>".$url;
 
 $module->emDebug("INBOUND: $url");
+/**
+ * TEST10: TwilioManager: send
+ *
+ * TEST8: TEST NONSENSE ? MISSING INSTRUCTIONS
+ *
+ * TEST6: CHECK TWILIO SENDING
+ */
+
 
 //TEST9
-if (true) {
+if (false) {
 
     /**
      * looking for 1677088959
@@ -358,7 +366,7 @@ if (false) {
 }
 
 //TEST6: CHECK TWILIO SENDING
-if (false) {
+if (true) {
     $tm = $module->getTwilioManager($module->getProjectId());
 
     $tm->sendTwilioMessage('+16505295666', "hello there");
@@ -449,6 +457,7 @@ if (false) {
     $all_steps = $fm->getCurrentFormStep('gset', 1, 'week_1_sms_arm_1');
     $module->emDebug("these are the steps: ", $all_steps);
 }
+
 if (false) {
     $fm = new FormManager($module, $form, $event);
 
