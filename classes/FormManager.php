@@ -147,6 +147,12 @@ class FormManager {
         return $instructions;
     }
 
+    public function getFieldLabel($current_step) {
+        $label = $this->form_script[$current_step]["field_label"];
+        return $label;
+    }
+
+
     /**
      * Given the current_question (variable name in data dictionary) and the record_id and event_id,
      * this method will return the next series of metadata ready to be sent as SMS
@@ -443,7 +449,7 @@ class FormManager {
             // Try to find a key-match
             if (in_array($input, array_keys($choices))) {
                 // Found a match to a key in the choices
-                $this->module->emDebug("Valid response of $input for $field_name");
+                $this->module->emDebug("Valid response of $input for $field_name", $choices, array_keys($choices));
                 return $input;
             }
 

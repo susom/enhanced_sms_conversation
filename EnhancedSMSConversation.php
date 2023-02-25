@@ -485,7 +485,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function handleReply($record_id, $cell_number, $msg) {
-        $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning');
+        $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning',  $this->getProjectId());
 
         //given cell_number, see what is the current state in the ConversationState
         if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
@@ -512,10 +512,20 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // Save the response to redcap?
                 $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
                 if ($result['errors']) {
-                    $this->emError("There were errors while saving $response to $record_id");
+                    $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors']);
+                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $found_cs->getEventId(),$found_cs->module->getProjectId());
+
+                    // Since we are not validating the min/max, using REDCap save to validate and warn?
+                    $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
+
+                    $instructions = $fm->getFieldInstruction($current_field);
+                    $label = $fm->getFieldLabel($current_field); // should this be added to the text??
+
+                    $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $instructions]));
+                    $tm->sendTwilioMessage($cell_number, $outbound_sms);
+                    return;
+
                 }
-                // TODO: Handle errors on save - maybea a try catch especially for text-based saves
-                // TODO: Since we are not validating the min/max should we use REDCap save to validate and warn?
 
                 //Since valid get next SMS to send and save field to state
                 $sms_to_send_list = $fm->getNextSMS($current_field, $record_id);
@@ -561,11 +571,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
     }
 
-
     public function saveResponseToREDCap($project_id, $record_id, $field_name, $event_id, $response) {
         $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
         $result     = REDCap::saveData($project_id, 'array', $data);
-        $this->emDebug("Saved $response", $result);
+        $this->emDebug("Saving $response to record: $record_id", $result);
         return $result;
     }
 

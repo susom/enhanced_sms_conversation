@@ -5,6 +5,7 @@ namespace Stanford\EnhancedSMSConversation;
 require_once "SimpleEmLogObject.php";
 require_once "FormManager.php";
 use Twilio;
+use REDCap;
 
 class ConversationState extends SimpleEmLogObject
 {
@@ -134,88 +135,10 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-    /**
-     * xxyjl: moving this to EnhancedSMSConversation
-     *
-     * Handle a response from a participant
-     * @return string response
-     */
-    public function parseReply() {
-        // By definition, we are an active conversation at this point
-        $body = $_POST['body'];
-
-        $response = "";
-
-        $now = time();
-        $expiry_ts = $this->getExpiryTs();
-
-        if (!empty($expiry_ts) && $now > $expiry_ts) {
-            // This conversation has expired
-            $this->expireConversation();
-            $response = "This conversation has expired";
-        } else {
-            $fm = new FormManager($this->module, $this->getInstrument(), $this->getEventId(), $this->module->getProjectId());
-
-            // Check the participant response and try to confirm it is a valid response
-            if (false !== $response = $fm->validateResponse($this->getCurrentField(),$body)) {
-                // VALID RESPONSE
-                $this->module->emDebug("We have validated response of $body as $response to save in field " . $this->getCurrentField());
-
-                // Save the response?
-                $result = $this->saveResponseToRedcap($response);
-                // TODO: Handle errors on save - maybea a try catch especially for text-based saves
-
-                $next_question = $fm->getNextQuestion($this->getCurrentField());
-                if (empty($next_question)) {
-                    // We are at the end of the survey
-                    // $this->module->setSurveyTimestamp()
-                    $this->setState('COMPLETE');
-                    $this->save();
-                    // TODO: Is there a 'thank you' or is that part of the descriptive...
-                } else {
-                    // Send out the next set of messages
-                    $this->setCurrentField($next_question);
-                    $this->setReminderTs();
-                    $this->sendCurrentMessages();
-                    // This should save at the end.
-                }
-            } else {
-                // INVALID response
-                $this->module->emDebug("Response of $body was not valid for " . $this->getCurrentField());
-                $this->setReminderTs();
-                $this->sendCurrentMessages();
-                //TODO: repeat question
-            }
-        }
-
-        // TODO: I'm not sure we really want to return a response at all as opposed to just sending new text messages.
-        // We could consider just always returning nothing to inbound messages...
-        return $response;
-    }
-
-
-    public function saveResponseToRedcap($response) {
-        $field_name = $this->getCurrentField();
-        $event_id   = $this->getEventId();
-        $project_id = $this->module->getProjectId();
-        $record_id  = $this->getRecordId();
-        $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
-        $result     = REDCap::saveData($project_id, 'array', $data);
-        $this->module->emDebug("Saved $response", $result);
-        return $result;
-    }
-
-
     public function expireConversation() {
         $this->setState('EXPIRED');
         $this->save();
     }
-
-
-
-
-
-
 
 
 

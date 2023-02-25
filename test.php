@@ -15,6 +15,8 @@ echo "<br><br>This is the TRAM innbound link: <br>".$url;
 
 $module->emDebug("INBOUND: $url");
 /**
+ * TEST11; FormManager: what is in choices?
+ *
  * TEST10: TwilioManager: send
  *
  * TEST8: TEST NONSENSE ? MISSING INSTRUCTIONS
@@ -22,6 +24,46 @@ $module->emDebug("INBOUND: $url");
  * TEST6: CHECK TWILIO SENDING
  */
 
+
+//TEST11: ValidateResponse
+if (true) {
+    $record_id = 1;
+    $form = "thursday";
+    $event = "week_1_sms_arm_1";
+    $current_field = 'desd';
+    $event_id = REDCap::getEventIdFromUniqueEvent($event);
+    //$current_field = 'wplan';
+
+    $cell_number = '+14152357577';
+    $record_id = 1;
+
+    $fm = new FormManager($module, $form, $event, $project_id);
+    $tm = $module->getTwilioManager($project_id);
+
+    $response = $fm->validateResponse($current_field, 'Yes');
+
+    $result = $module->saveResponseToREDCap($project_id,$record_id, $current_field, $event_id, $response);
+    if ($result['errors']) {
+        $module->emDebug("There were errors while saving $response to $record_id", $result['errors']);
+
+        $module->emDebug("getting instrustions for $current_field");
+
+        $nonsense_test_warning = $module->getProjectSetting('nonsense-text-warning', $project_id);
+        $instructions = $fm->getFieldInstruction($current_field);
+        $label = $fm->getFieldLabel($current_field);
+
+        //$active_variable = $fm->getActiveQuestion($current_step);
+        $outbound_sms = implode("\n", array_filter([$nonsense_test_warning, $instructions]));
+        $tm->sendTwilioMessage($cell_number, $outbound_sms);
+
+        //\REDCap::logEvent("Nonsense warning  for $current_field", $result['errors'],$record_id,$event_id, $project_id);
+
+    }
+
+
+
+
+}
 
 //TEST9
 if (false) {
@@ -263,7 +305,10 @@ if (false) {
 //    $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
 
     $meta = $fm->getCurrentFormStep($current_field, $record_id,$event);
-    $module->emDebug("list is", $meta);
+    $module->emDebug("list for $current_field is", $meta);
+
+    $meta = $fm->getCurrentFormStep('desd', $record_id,$event);
+    $module->emDebug("list for desd is", $meta);
 
     $msg = "ha";  //expected response is false: got false
     $return = $fm->validateResponse($current_field, $msg);
@@ -366,7 +411,7 @@ if (false) {
 }
 
 //TEST6: CHECK TWILIO SENDING
-if (true) {
+if (false) {
     $tm = $module->getTwilioManager($module->getProjectId());
 
     $tm->sendTwilioMessage('+16505295666', "hello there");
