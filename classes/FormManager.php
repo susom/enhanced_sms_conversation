@@ -447,6 +447,15 @@ class FormManager {
 
         if ($choices = $meta['preset_choices']) {
 
+            $this->module->emDebug("INPUT IS ". $input);
+            $this->module->emDebug("FIELDTYPE  IS ". $meta['field_type']);
+            $foo_keys = array_keys($choices);
+            $this->module->emDebug("ARRAY KEYS  IS ",  $foo_keys);
+            $valid = in_array($input, $foo_keys);
+            $this->module->emDebug("IS IT VAILD ",  $valid);
+
+
+
             // Check for boolean aliases first
             if (in_array($meta['field_type'], ["yesno","truefalse"])) {
                 if ( isset(self::BOOLEAN_ALIASES[$input]) ) {
