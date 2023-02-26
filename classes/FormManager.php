@@ -451,13 +451,13 @@ class FormManager {
             $this->module->emDebug("FIELDTYPE  IS ". $meta['field_type']);
             $foo_keys = array_keys($choices);
             $this->module->emDebug("ARRAY KEYS  IS ",  $foo_keys);
-            $valid = in_array($input, $foo_keys);
+            $valid = in_array($input, $foo_keys, true);
             $this->module->emDebug("IS IT VAILD ",  $valid);
 
 
 
             // Check for boolean aliases first
-            if (in_array($meta['field_type'], ["yesno","truefalse"])) {
+            if (in_array($meta['field_type'], ["yesno","truefalse"], true)) {
                 if ( isset(self::BOOLEAN_ALIASES[$input]) ) {
                     $alias = self::BOOLEAN_ALIASES[$input];
                     if (in_array($alias, array_keys($choices))) {
@@ -468,7 +468,7 @@ class FormManager {
             }
 
             // Try to find a key-match
-            if (in_array($input, array_keys($choices))) {
+            if (in_array($input, array_keys($choices), true)) {
                 // Found a match to a key in the choices
                 $this->module->emDebug("Valid response of $input for $field_name", $choices, array_keys($choices));
                 return $input;
