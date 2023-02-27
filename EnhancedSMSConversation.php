@@ -392,7 +392,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             'fields'        => $fields,
             'records'       => array($record_id)
         ];
-        $results = REDCap::getData($params);
+        $results = REDCap::getData($project_id, $params);
         $return_field = $results[$record_id][$this_field_event_id][$this_field];
 
         return $return_field;
