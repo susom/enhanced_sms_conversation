@@ -36,30 +36,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // Other code to run when object is instantiated
     }
 
-    /**
-     * @return Client TwilioClient
-     * @throws \Twilio\Exceptions\ConfigurationException
-     */
-    public function getTwilioClient() {
-        if (empty($this->TwilioClient)) {
-            $sid = $this->getProjectSetting('twilio-sid');
-            $token = $this->getProjectSetting('twilio-token');
-            $this->TwilioClient = new Client($sid, $token);
-        }
-        return $this->TwilioClient;
-    }
-
-    /**
-     * Get the twilio number from the project settings.
-     * @return mixed
-     */
-    public function getTwilioNumber() {
-        if (empty($this->twilio_number)) {
-            $this->twilio_number = $this->formatNumber($this->getProjectSetting('twilio-number'));
-        }
-        return $this->twilio_number;
-    }
-
 
     public function validateConfiguration() {
         // TODO: validate phone number field is validated as phone
@@ -99,7 +75,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         //todo: intercept ASI emails, get context, create session
 
         // Exit if this is not an @ESMS email
-        if (strpos($subject, "@ESMS") === false) return true;
+        //if (strpos($subject, "@ESMS") === false) return true;
+
+        if (strpos($message, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
         $MC = new MessageContext($this);
@@ -182,7 +160,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
         //6. get the first sms to send
-        $fm = new FormManager($this, $instrument, $event_id, $this->getProjectId());
+        $fm = new FormManager($this, $instrument, $event_id, $project_id);
         $sms_to_send_list = $fm->getNextSMS('', $record_id, $event_id);
         $active_field     = $fm->getActiveQuestion($sms_to_send_list);
 
@@ -199,12 +177,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             "current_field" => $active_field
         ]);
         $CS->setState("ACTIVE");
-        $CS->setExpiryTs();
-        $CS->setReminderTs();
+        $CS->setExpiryTs($project_id);
+        $CS->setReminderTs($project_id);
         $CS->save();
 
         //6. SEND SMS
-        $tm = $this->getTwilioManager($this->getProjectId());
+        $tm = $this->getTwilioManager($project_id);
         foreach ($sms_to_send_list as $k => $v) {
             $msg = $v['field_label'];
             $tm->sendTwilioMessage($cell_number, $msg);
@@ -387,12 +365,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
 
         $params = [
+            'project_id'    => $project_id,
             'return_format' => 'array',
             'events'        => $this_field_event_id,
             'fields'        => $fields,
             'records'       => array($record_id)
         ];
-        $results = REDCap::getData($project_id, $params);
+        $results = REDCap::getData($params);
         $return_field = $results[$record_id][$this_field_event_id][$this_field];
 
         return $return_field;

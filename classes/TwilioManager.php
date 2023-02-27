@@ -23,9 +23,9 @@ class TwilioManager {
         $this->project_id = $project_id;
 
 
-        $this->sid = $module->getProjectSetting('twilio-sid');
-        $this->token = $module->getProjectSetting('twilio-token');
-        $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number'));
+        $this->sid = $module->getProjectSetting('twilio-sid', $project_id);
+        $this->token = $module->getProjectSetting('twilio-token',$project_id);
+        $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$project_id));
 
         if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new Exception ("Missing Twilio setup - see external module config");
 
@@ -76,8 +76,8 @@ class TwilioManager {
      */
     public function getTwilioClient() {
         if (empty($this->twilio_client)) {
-            $sid = $this->getProjectSetting('twilio-sid');
-            $token = $this->getProjectSetting('twilio-token');
+            $sid = $this->getProjectSetting('twilio-sid', $this->project_id);
+            $token = $this->getProjectSetting('twilio-token', $this->project_id);
             $this->twilio_client = new Client($this->sid, $this->token);
         }
     }

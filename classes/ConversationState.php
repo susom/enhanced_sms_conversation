@@ -44,94 +44,19 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-    /**
-     * Send the current question to the participant, include previous fields if necessary
-     * @return void
-     * @throws Twilio\Exceptions\ConfigurationException
-     * @throws Twilio\Exceptions\TwilioException
-     */
-    public function sendCurrentMessages() {
-        $instrument = $this->getInstrument();
-        $event_id = $this->getEventId();
-        $project_id = $this->module->getProjectId();
-        $record_id = $this->getRecordId();
-        $instance = 1;      // Not supported yet!
-        $current_field = $this->getCurrentField();
-
-        $this->module->emDebug("Executing next step with $instrument / $event_id / $project_id / $current_field");
-
-        $fm = new FormManager($this->module, $instrument, $event_id, $project_id);
-
-        // If current field is blank, then we start at the beginning.
-        // If current field is not blank, we find that point in the form_script
-        list($messages, $new_current_field) = $fm->getMessageOptions($current_field,$record_id, $instance);
-
-        foreach ($messages as $message) {
-            $TC = $this->module->getTwilioClient();
-            $sms = $TC->messages->create(
-                // To Number
-                $this->getCellNumber(),
-                [
-                    'from' => $this->module->getTwilioNumber(),
-                    'body' => $message
-                ]
-            );
-            $this->module->emDebug("Sent Message to " . $this->getCellNumber(), $message, $sms);
-            // TODO: Check for errors and opt out for error 30004
-            // https://www.twilio.com/docs/api/errors/30004
-        }
-
-        if ($current_field !== $new_current_field) {
-            // We have moved to a new field
-            $this->module->emDebug("Changing current field from $current_field to $new_current_field");
-            $this->setValue('current_field', $new_current_field);
-
-            if (empty($new_current_field)) {
-                // The survey has ended (likely on a descriptive field)
-                $this->module->emDebug("Survey has ended on descriptive field");
-                $this->setState('COMPLETE');
-            }
-            $this->save();
-        }
-    }
-
-    public function setExpiryTs() {
-        $default_expiry = $this->module->getProjectSetting('default-conversation-expiry-minutes');
+    public function setExpiryTs($project_id) {
+        $default_expiry = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id);
         if (!empty($default_expiry)) {
             $this->setValue('expiry_ts', time() + ($default_expiry * 60));
         }
     }
 
-    public function setReminderTs($ts = null) {
+    public function setReminderTs($project_id,$ts = null) {
         if (empty($ts)) {
-            $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes');
+            $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id);
             $ts = time() + ($default_reminder * 60);
         }
         $this->setValue('reminder_ts', $ts);
-    }
-
-
-    /**
-     * Deliver a message to the conversation state
-     * @param $body
-     * @return true
-     * @throws Twilio\Exceptions\ConfigurationException
-     * @throws Twilio\Exceptions\TwilioException
-     */
-    public function sendSms($body) {
-        $TC = $this->module->getTwilioClient();
-        $sms = $TC->messages->create(
-        // To Number
-            $this->getCellNumber(),
-            [
-                'from' => $this->module->twilio_number,
-                'body' => $body
-            ]
-        );
-        $this->module->emDebug("Send Message", $body, $sms);
-        // TODO: Check for errors and opt out for error 30004
-        // https://www.twilio.com/docs/api/errors/30004
-        return true;
     }
 
 
