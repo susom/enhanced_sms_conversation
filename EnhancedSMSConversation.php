@@ -292,9 +292,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return mixed
      * @throws ConfigSetupException
      */
-    public function isOptedOut($record_id) {
+    public function isOptedOut($record_id, $project_id) {
         // TODO:
-        $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id' );
+        $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id );
 
         $this->emDebug("Query for SMS opt out: ",$sms_opt_out);
         $return = $sms_opt_out["1"] == 1;
@@ -308,8 +308,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return bool
      * @throws ConfigSetupException
      */
-    public function isWithdrawn($record_id) {
-        $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id' );
+    public function isWithdrawn($record_id, $project_id) {
+        $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id', $project_id );
 
         $this->emDebug("Query for withdrawn: ", $withdrawn);
         $return = $withdrawn["1"] == 1;
@@ -323,8 +323,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return mixed|string
      * @throws ConfigSetupException
      */
-    public function getRecordPhoneNumber($record_id) {
-        $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id' );
+    public function getRecordPhoneNumber($record_id, $project_id) {
+        $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id', $project_id );
 
         $this->emDebug("Query for number: $number");
         if ($number) {
@@ -371,10 +371,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return mixed
      * @throws ConfigSetupException
      */
-    private function getFieldData($record_id, $this_field_config, $this_field_event_id_config) {
-        $this_field = $this->getProjectSetting($this_field_config);
-        $this_field_event_id = $this->getProjectSetting($this_field_event_id_config);
-        $fields = [REDCap::getRecordIdField(), $this_field];
+    private function getFieldData($record_id, $this_field_config, $this_field_event_id_config, $project_id) {
+        global $Proj;
+        $this_field = $this->getProjectSetting($this_field_config, $project_id);
+        $this_field_event_id = $this->getProjectSetting($this_field_event_id_config, $project_id);
+
+        //$rec_id_field = REDCap::getRecordIdField(); //This needs project id context
+        $_Proj = $Proj->project_id == $project_id ? $Proj : new \Project($project_id);
+        $record_id_field = $_Proj->table_pk;
+
+        $fields = [$record_id_field, $this_field];  //
 
         if (empty($this_field) && empty($this_field_event_id)) {
             throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
@@ -433,12 +439,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             // TODO: Get opt-out-sms status for number
-            if ($this->isWithdrawn($record_id)) {
+            if ($this->isWithdrawn($record_id, $this->getProjectId())) {
                 REDCap::logEvent("Received text from withdrawn participant", "Received:  $body. No further action since withdrawn","",$record_id);
                 return;
             }
             // TODO: Get opt-out-sms status for number
-            if ($this->isOptedOut($record_id)) {
+            if ($this->isOptedOut($record_id, $this->getProjectId())) {
                 REDCap::logEvent("Received text from opted-out participant", "Received:  $body. No further action since opted out","",$record_id);
                 return;
             }
