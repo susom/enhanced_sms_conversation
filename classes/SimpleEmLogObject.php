@@ -125,15 +125,13 @@ class SimpleEmLogObject
                     $this->module->emDebug("The parameter $name remains unchanged as $val");
                 } else {
                     // Update
-                    $this->module->emDebug("========BROKEN UPDATE?????=========SELO SETTING $name to $val");
-                    $this->module->emDebug("x2Updated property $name from " . $this->$name . " to $val");
-                    //TODO: ANDY this does not update
+                    $this->module->emDebug("x2Updated property $name from " . $this->object_parameters[$name] . " to $val");
                     $this->object_parameters[$name] = $val;
                     $this->dirty_parameters[] = $name;
                 }
             } else {
                 // Create
-                $this->module->emDebug("Created property $name from " . $this->$name . " to $val");
+                $this->module->emDebug("Created property $name from " . $this->object_parameters[$name] . " to $val");
                 $this->object_parameters[$name] = $val;
                 $this->dirty_parameters[] = $name;
             }
@@ -209,7 +207,9 @@ class SimpleEmLogObject
                         $sql = "INSERT INTO redcap_external_modules_log_parameters (log_id,name,value) " .
                             " VALUES (?,?,?) ON DUPLICATE KEY UPDATE value=?";
                         $this->module->emDebug($sql);
-                        $this->module->query($sql, [$this->log_id, $k, $v, $v]);
+                        $result = $this->module->query($sql, [$this->log_id, $k, $v, $v]);
+
+                        $this->module->emDebug("RESULT OF QUERY: ", $result);
 
                         $this->logChange("Updated $k to $v");
                         // Remove from dirty parameters
