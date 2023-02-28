@@ -43,6 +43,7 @@ class TwilioManager {
      * @throws Exception
      */
     public function sendTwilioMessage($to_number, $message) {
+        $this->module->emDebug("sending to $to_number: ". $message);
         // Check to instantiate the client
         $this->getTwilioClient();
 

@@ -515,19 +515,24 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 //Since valid get next SMS to send and save field to state
                 $sms_to_send_list = $fm->getNextSMS($current_field, $record_id);
                 $active_field     = $fm->getActiveQuestion($sms_to_send_list);
-                $this->emDebug("ACTIVE FIELD: ". $active_field);
+                $this->emDebug("ACTIVE FIELD: ". $active_field, $sms_to_send_list);
 
 
                 //sometimes there are final descriptive coaching messages, but no active field.
                 if (!empty($sms_to_send_list)) {
                     // Send out the next set of messages
-                    $found_cs->setCurrentField($active_field);
-                    $found_cs->setReminderTs();
-                    $found_cs->save();
                     foreach ($sms_to_send_list as $k => $v) {
                         $sms = $v['field_label'];
                         $tm->sendTwilioMessage($cell_number, $sms);
+                        $this->emDebug("Sent to $cell_number: ". $sms);
                     }
+
+                    //persist  in state table
+                    $found_cs->setCurrentField($active_field);
+                    $found_cs->setReminderTs();
+                    $found_cs->save();
+                    $this->emDebug("Persisted to : ". $found_cs->getId());
+
                 }
 
                 //if active field is empty then set state to complete
