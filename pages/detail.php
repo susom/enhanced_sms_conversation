@@ -21,6 +21,44 @@ $c = 3;
 </style>
 <?php
 
+// Testing the metadata parser functions:
+/** @set \Project $proj */
+global $proj;
+
+$event_id = 167;
+$FM = new FormManager($module, 'survey_1', 167,81);
+//var_dump($FM);
+
+$record = "34";
+$q = $FM->getMessageOptions('',$record);
+var_dump($q);
+
+$q = $FM->getMessageOptions($q['current_field'], $record);
+var_dump($q);
+
+$nf = $FM->getNextField($q['current_field']);
+$q = $FM->getMessageOptions($nf, $record);
+var_dump($nf,$q);
+
+$q = $FM->getMessageOptions($q['current_field'], $record);
+var_dump($q['current_field'],$q);
+
+$nf = $FM->getNextField($q['current_field']);
+$q = $FM->getMessageOptions($nf, $record);
+var_dump($nf,$q);
+
+
+die();
+$field = $q['current_field'];
+
+echo "\n------\n";
+$response = " nope e ";
+$field = "yn_2";
+$r = $FM->validateResponse($field, $response);
+var_dump("Answer $field with $response", $r);
+
+
+
 
 if (false) {
     $CS = new ConversationState($module, "CS");
@@ -127,7 +165,7 @@ if (false) {
 
 
 
-if (true) {
+if (false) {
     // Make a conversation
     // $CS = new ConversationState($module);
     // $CS->setValues([

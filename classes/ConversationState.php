@@ -64,7 +64,7 @@ class ConversationState extends SimpleEmLogObject
 
         // If current field is blank, then we start at the beginning.
         // If current field is not blank, we find that point in the form_script
-        list($messages, $new_current_field) = $fm->getMessagesAndCurrentQuestion($current_field,$record_id, $instance);
+        list($messages, $new_current_field) = $fm->getMessageOptions($current_field,$record_id, $instance);
 
         foreach ($messages as $message) {
             $TC = $this->module->getTwilioClient();
