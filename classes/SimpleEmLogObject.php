@@ -95,11 +95,13 @@ class SimpleEmLogObject
      * @return void
      */
     public function setValue($name, $val) {
+        $this->module->emDebug("=================SELO SETTING $name to $val");
         if(property_exists($this,$name)) {
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
+                $this->module->emDebug("THIS NAME: ". $this->$name);
                 if ($this->$name != $val) {
-                    $this->module->emDebug("Updated property $name from " . $this->$name . " to $val");
+                    $this->module->emDebug("x1Updated property $name from " . $this->$name . " to $val");
                     $this->$name = $val;
                     $this->dirty_columns[] = $name;
                 } else {
@@ -123,7 +125,9 @@ class SimpleEmLogObject
                     $this->module->emDebug("The parameter $name remains unchanged as $val");
                 } else {
                     // Update
-                    $this->module->emDebug("Updated property $name from " . $this->$name . " to $val");
+                    $this->module->emDebug("========BROKEN UPDATE?????=========SELO SETTING $name to $val");
+                    $this->module->emDebug("x2Updated property $name from " . $this->$name . " to $val");
+                    //TODO: ANDY this does not update
                     $this->object_parameters[$name] = $val;
                     $this->dirty_parameters[] = $name;
                 }
@@ -190,7 +194,7 @@ class SimpleEmLogObject
     public function save() {
         if ($this->log_id) {
             // For saving existing log_ids
-
+            $this->module->emDebug("DIRTY IN SAVE: ", $this->dirty_parameters, $this->dirty_columns);
             // We only update dirty parameters
             $this->dirty_parameters = array_unique($this->dirty_parameters);
 

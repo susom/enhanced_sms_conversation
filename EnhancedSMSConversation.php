@@ -529,8 +529,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                     //persist  in state table
                     $found_cs->setCurrentField($active_field);
+                    $found_cs->save(); //current field not saving?? there seems to be a need for saving after each dirty
+
                     $found_cs->setReminderTs();
                     $found_cs->save();
+
                     $this->emDebug("Persisted to : ". $found_cs->getId());
 
                 }
