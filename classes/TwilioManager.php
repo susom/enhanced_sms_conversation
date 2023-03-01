@@ -3,35 +3,30 @@
 namespace Stanford\EnhancedSMSConversation;
 
 use REDCap;
-use \Twilio\TwiML\MessagingResponse;
 use \Twilio\Rest\Client;
 use \Exception;
 
-require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
+// require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
 class TwilioManager {
     /** @var EnhancedSMSConversation $module */
-
     private $module;
+
     private $sid;
     private $token;
     private $twilio_number;
     private $project_id;
-    private $twilio_client;
+
+    private Client $TwilioClient;
 
     public function __construct($module, $project_id) {
         $this->module = $module;
         $this->project_id = $project_id;
 
-
-        $this->sid = $module->getProjectSetting('twilio-sid', $project_id);
-        $this->token = $module->getProjectSetting('twilio-token',$project_id);
-        $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$project_id));
+        $this->sid = $module->getProjectSetting('twilio-sid', $this->project_id);
+        $this->token = $module->getProjectSetting('twilio-token',$this->project_id);
+        $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$this->project_id));
 
         if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new Exception ("Missing Twilio setup - see external module config");
-
-        $this->twilio_client = new \Services_Twilio($this->sid , $this->token);
-
-
     }
 
 
@@ -44,18 +39,22 @@ class TwilioManager {
      */
     public function sendTwilioMessage($to_number, $message) {
         $this->module->emDebug("sending to $to_number: ". $message);
-        // Check to instantiate the client
-        $this->getTwilioClient();
 
+        // Format to number
         $to = $this->module->formatNumber($to_number);
-        $this->module->emDebug("Formatting to number from $to_number to $to");
+        if ($to !== $to_number) {
+            $this->module->emDebug("Formatted to number from $to_number to $to");
+        }
 
         try {
-            $sms = $this->twilio_client->account->messages->sendMessage(
-                $this->twilio_number,
+            $sms = $this->getTwilioClient()->messages->create(
                 $to,
-                $message
+                [
+                    'from' => $this->twilio_number,
+                    'body' => $message
+                ]
             );
+            $this->module->emDebug("SMS RESPONSE: " . json_encode($sms));
             if (!empty($sms->error_code) || !empty($sms->error_message)) {
                 $error_message = "Error #" . $sms->error_code . " - " . $sms->error_message;
                 $this->module->emError($error_message);
@@ -75,11 +74,11 @@ class TwilioManager {
      * @return Client TwilioClient
      * @throws \Twilio\Exceptions\ConfigurationException
      */
-    public function getTwilioClient() {
-        if (empty($this->twilio_client)) {
-            $sid = $this->getProjectSetting('twilio-sid', $this->project_id);
-            $token = $this->getProjectSetting('twilio-token', $this->project_id);
-            $this->twilio_client = new Client($this->sid, $this->token);
+    private function getTwilioClient() {
+        if (empty($this->TwilioClient)) {
+            $this->TwilioClient = new Client($this->sid, $this->token);
         }
+        return $this->TwilioClient;
     }
+
 }

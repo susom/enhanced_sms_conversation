@@ -27,17 +27,28 @@ AccountSid=AC40b3884912172e03b4b9c2c0ad8d2ae8
 From=%2B16503803405
 ApiVersion=2010-04-01
 
-
  */
-$module->emDebug("Inbound", $_POST);
 
-if ($module->getProjectSetting('disable-incoming-sms')) {
-    $module->emDebug("Inbound processing disabled.");
-    header('Content-Type: text/html');
-    echo "<Response></Response>";
-} else {
-    $response = $module->processInboundMessage();
-    print $response;
-    $module->emDebug("Response", $response."");
+// Ignoring any non-POST hits to this endpoint
+if ($_SERVER['REQUEST_METHOD'] === "POST") {
+
+    $module->emDebug("Inbound Post:", $_POST);
+
+    if ($module->getProjectSetting('disable-incoming-sms')) {
+        $module->emDebug("Inbound processing disabled.");
+        header('Content-Type: text/html');
+        $response =  "The system is offline - please check with the study administrator";
+        // TODO: Log this inbound message
+    } else {
+        // Originally, we were thinking of using the inbound response to send the first reply, but due to the challenges
+        // of sending sequential replies in the right order, we are just going to respond with nothing and if we have
+        // messages to send back, we will probably send them as separate messages.
+        $response = $module->processInboundMessage();
+    }
+
+    if (!empty($response)) {
+        $module->emDebug("Inbound Message Response: " . $response);
+        echo "<Response>$response</Response>";
+    }
+
 }
-

@@ -7,50 +7,39 @@ require_once "classes/ConversationState.php";
 require_once "classes/MessageContext.php";
 require_once "classes/FormManager.php";
 require_once "classes/TwilioManager.php";
+require_once "classes/CustomExceptions.php";
 
 use \REDCap;
+use \Project;
 use \Twilio\TwiML\MessagingResponse;
-use \Twilio\Rest\Client;
-use Twilio\TwiML\Voice\Conversation;
+use \Exception;
 
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
-    public $TwilioClient;
     public $twilio_number;
-    public $twilio_manager;
+
+    public $TwilioManager;
 
     const NUMBER_PREFIX = "NUMBER:";
 
     const ACTION_TAG_PREFIX = "@ESC";
     const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
 
+    const ACTION_TAG_VALIDATION_MESSAGE = "@ESC_VALIDATION_MESSAGE";
+
+    const DEFAULT_OPT_IN_MESSAGE = "You have been opted-in to SMS communication.  Reply with 'STOP' or 'UNSUBSCRIBE' to be removed.";
+    const DEFAULT_OPT_OUT_MESSAGE = "You have opted out to SMS communications.  Reply with 'START' to resume using SMS.";
+
     const LAST_RESPONSE_EXPIRY_DELAY_SEC = 180; // If it has been less than this time since a response, do not expire a conversation yet.
 
     const VALID_SURVEY_TIMESTAMP_STAGES = ['completion_time','start_time', 'first_submit_time'];
 
-    const OPT_OUT_KEYWORDS = [ 'stop', 'optout'];
-
+    const OPT_OUT_KEYWORDS = ['stop', 'optout'];
+    const OPT_IN_KEYWORDS = ['start'];
     public function __construct() {
         parent::__construct();
         // Other code to run when object is instantiated
-    }
-
-
-    public function validateConfiguration() {
-        // TODO: validate phone number field is validated as phone
-        // TODO: make sure phone field exists (in event if longitudial)
-        // Has designated email field
-        // TODO: make sure opt-out field exists and is of type text
-        // TODO: make sure withdraw field exists in event
-
-    }
-
-    public function getTwilioManager($project_id) {
-        if ($this->twilio_manager === null) {
-            $this->twilio_manager = new TwilioManager($this, $project_id);
-        }
-        return $this->twilio_manager;
     }
 
 
@@ -72,43 +61,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function redcap_email($to, $from, $subject, $message, $cc, $bcc, $fromName, $attachments) {
-        //todo: intercept ASI emails, get context, create session
-
         // Exit if this is not an @ESMS email
-        //if (strpos($subject, "@ESMS") === false) return true;
-
         if (strpos($message, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
+
+        // We determine the project/record/etc from a complex helper object
         $MC = new MessageContext($this);
-        $this->emDebug("Context array for email is: ", $MC->getContextAsArray(), PAGE);
-
-        /*
-            // Immediate ASI works:
-            [source] => ASI
-            [source_id] => 177
-            [project_id] => 81
-            [record_id] => 17
-            [event_id] => 167
-            [instance] => 1
-            [event_name] => event_1_arm_1
-            [instrument] => survey_1
-            [survey_id] => 177
-
-            // immediate alert - instgrument isn't correct
-            [source] => Alert
-            [source_id] => 51
-            [project_id] => 81
-            [record_id] => 18
-            [event_id] => 167
-            [instance] => 1
-            [event_name] => event_1_arm_1
-            [instrument] => record_information
-            [survey_id] =>
-        */
-
-        // 1. get record-id + event + survey_id
         $mc_context = $MC->getContextAsArray();
+        $this->emDebug("EMAIL context: " . PAGE, $mc_context);
+
         $project_id = $mc_context['project_id'];
         $record_id  = $mc_context['record_id'];
         $event_id   = $mc_context['event_id'];
@@ -125,7 +87,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             // 3. get the SMS optout status of this record_id
-            if ($this->isOptedOut($record_id, $project_id)) {
+            if ($this->getRecordOptOutStatus($record_id, $project_id)) {
                 // Do not create a new CS
                 $errors[] = "New conversation for record $record_id aborted because record is opted out";
             }
@@ -194,6 +156,21 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
     /**
+     * Only show the test page for a super-user
+     * @param $project_id string
+     * @param $link array
+     * @return void|null
+     */
+    public function redcap_module_link_check_display($project_id, $link) {
+        $this->emDebug("Checking for $project_id",$link);
+        if (isset($link['superuseronly']) && $link['superuseronly']) {
+            if (!$this->getUser()->isSuperUser()) return null;
+        }
+        return $link;
+    }
+
+
+    /**
      * Get the completion timestamp if it exists
      *
      * @param int $survey_id
@@ -225,6 +202,29 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $result = false;
         }
         return $result;
+    }
+
+
+    public function validateConfiguration() {
+        // TODO: validate phone number field is validated as phone
+        // TODO: make sure phone field exists (in event if longitudial)
+        // Has designated email field
+        // TODO: make sure opt-out field exists and is of type text
+        // TODO: make sure withdraw field exists in event
+
+    }
+
+
+    /**
+     * @param $project_id
+     * @return TwilioManager
+     * @throws \Exception
+     */
+    public function getTwilioManager($project_id) {
+        if ($this->TwilioManager === null) {
+            $this->TwilioManager = new TwilioManager($this, $project_id);
+        }
+        return $this->TwilioManager;
     }
 
 
@@ -267,31 +267,26 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     /**
      * Determine if a record has opted out to SMS communication
      * @param $record_id
-     * @return mixed
+     * @param $project_id
+     * @return boolean True if opted out, false if still in.
      * @throws ConfigSetupException
      */
-    public function isOptedOut($record_id, $project_id) {
-        // TODO:
-        $sms_opt_out = $this->getFieldData($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id );
-
-        $this->emDebug("Query for SMS opt out: ",$sms_opt_out);
-        $return = $sms_opt_out["1"] == 1;
-        return $return;
+    public function getRecordOptOutStatus($record_id, $project_id) {
+        $sms_opt_out = $this->getFieldDataFromConfigSettings($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id );
+        return $sms_opt_out["1"] == 1;
     }
 
 
     /**
      * Determine if a record is withdrawn
-     * @param $record_id
+     * @param string $record_id
+     * @param int $project_id
      * @return bool
      * @throws ConfigSetupException
      */
     public function isWithdrawn($record_id, $project_id) {
-        $withdrawn = $this->getFieldData($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id', $project_id );
-
-        $this->emDebug("Query for withdrawn: ", $withdrawn);
-        $return = $withdrawn["1"] == 1;
-        return $return;
+        $withdrawn = $this->getFieldDataFromConfigSettings($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id', $project_id);
+        return $withdrawn["1"] == 1;
     }
 
 
@@ -302,66 +297,79 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws ConfigSetupException
      */
     public function getRecordPhoneNumber($record_id, $project_id) {
-        $number = $this->getFieldData($record_id, 'phone-field', 'phone-field-event-id', $project_id );
-
-        $this->emDebug("Query for number: $number");
+        $number = $this->getFieldDataFromConfigSettings($record_id, 'phone-field', 'phone-field-event-id', $project_id);
+        // $this->emDebug("Query for number: $number");
         if ($number) {
             $number = $this->formatNumber($number);
         }
         return $number;
     }
 
-    public function optOutSMS($record_id) {
-        $optout_field = $this->getProjectSetting('sms-opt-out-field');
-        $optout_field_event_id = $this->getProjectSetting('sms-opt-out-field-event-id');
 
-        if (empty($optout_field) && empty($optout_field_event_id)) {
-            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
+
+    /**
+     * Change the record opt-in/opt-out status and send a confirming text message to record.
+     * @param $record_id
+     * @param bool $opt_out
+     * @return bool returns false if something went wrong
+     * @throws ConfigSetupException
+     */
+    public function setRecordOptOutStatus($record_id, $opt_out = true) {
+        $this_field_config = 'sms-opt-out-field';
+        $this_field_event_id_config = 'sms-opt-out-field-event-id';
+        $this_field = $this->getProjectSetting($this_field_config);
+        $this_field_event_id = $this->getProjectSetting($this_field_event_id_config);
+        if (empty($this_field) && empty($this_field_event_id)) {
+            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup around $this_field_config and $this_field_event_id_config");
         }
 
-        // $data = array(
-        //     REDCap::getRecordIdField() => $record_id,
-        //     'redcap_event_name' => REDCap::getEventNames(true, false, $optout_field_event_id),
-        //     $optout_field. "___1" => 1
-        // );
-        //
-        // $this->emDebug("saved opt out", $data);
-        // $response = REDCap::saveData('json', json_encode(array($data)));
-
-        // Array method
-        $data = [ $record_id => [ $optout_field_event_id => [ $optout_field[1] => 1 ] ] ];
+        $checkbox_value = $opt_out ? 1 : 0;
+        $data = [
+            $record_id => [
+                $this_field_event_id => [
+                    $this_field[1] => $checkbox_value ]
+            ]
+        ];
         $response = REDCap::saveData('array', $data);
 
-        $this->emDebug("saved opt out", $response['errors']);
         if (empty($response['errors'])) {
-            return true;
+            $this->emDebug("Updated record $record_id opt-out status to $checkbox_value");
+
+            // TODO: send message to confirm change - since this can only be updated via an inbound message,
+            // we can use the reply to return the message.
+            // $TM = $this->getTwilioManager();
+            // $number = $this->getRecordPhoneNumber($record_id, $this->getProjectId());
+            $message = $opt_out ? $this->getOptOutMessage() : $this->getOptInMessage();
+            // $TM->sendTwilioMessage($number, $message);
+            return $message;
         } else {
-            return false;
+            $this->emError("Updated record $record_id opt-out status to $checkbox_value WITH ERRORS:", $response);
+            return "";
         }
     }
 
 
-
     /**
+     * Given a config field_name and event_id setting, pull the resulting data from the project for the specified record
      * @param $record_id
      * @param $this_field_config
      * @param $this_field_event_id_config
      * @return mixed
      * @throws ConfigSetupException
      */
-    private function getFieldData($record_id, $this_field_config, $this_field_event_id_config, $project_id) {
+    private function getFieldDataFromConfigSettings($record_id, $this_field_config, $this_field_event_id_config, $project_id) {
+        // We need the table_pk from Proj for getData to be cron safe
         global $Proj;
-        $this_field = $this->getProjectSetting($this_field_config, $project_id);
+        $_Proj = $Proj->project_id == $project_id ? $Proj : new Project($project_id);
+
+        $this_field          = $this->getProjectSetting($this_field_config, $project_id);
         $this_field_event_id = $this->getProjectSetting($this_field_event_id_config, $project_id);
+        $record_id_field     = $_Proj->table_pk;
 
-        //$rec_id_field = REDCap::getRecordIdField(); //This needs project id context
-        $_Proj = $Proj->project_id == $project_id ? $Proj : new \Project($project_id);
-        $record_id_field = $_Proj->table_pk;
-
-        $fields = [$record_id_field, $this_field];  //
+        $fields = [$record_id_field, $this_field];  //TODO: I don't think we need the recorD_id field, do we?  Can we remove this and the $Proj stuff?
 
         if (empty($this_field) && empty($this_field_event_id)) {
-            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup.");
+            throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup for $this_field_config / $this_field_event_id_config.");
         }
 
         $params = [
@@ -372,88 +380,86 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             'records'       => array($record_id)
         ];
         $results = REDCap::getData($params);
-        $return_field = $results[$record_id][$this_field_event_id][$this_field];
-
+        $return_field = $results[$record_id][$this_field_event_id][$this_field] ?? "";
         return $return_field;
     }
 
+
     /**
      * Process Inbound SMS
-     * @return MessagingResponse
+     *  - ASSUMES PROJECT CONTEXT
+     * @return string Response or empty string
      */
     public function processInboundMessage() {
-        // TODO: Validate message as Twilio
         try {
             // Confirm to number matches configured twilio number
             $twilio_number = $this->formatNumber($this->getProjectSetting('twilio-number'));
             if ($_POST['To'] !== $twilio_number) {
                 $error = "Received inbound message addressed to " . $_POST['To'] . " when project is configured to use $twilio_number";
                 $this->emError($error);
-                // Still try to process / could change to exception
-                // throw new \Exception($error);
+                // Still try to process / could result from a change in study number... Could change to exception in the future:
+                // throw new InboundException($error);
             }
 
             // See if record exists on project
             $from_number = $_POST['From'];
             if (empty($from_number)) {
-                throw new \Exception("Missing required `From` number");
+                throw new InboundException("Missing required `From` number in POST");
             }
             $record_id = $this->getRecordIdByCellNumber($from_number);
 
+            // TODO: Log inbound message with number and record_id.  Anything else?
+
             if (empty($record_id)) {
-                REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
-                return;
+                // REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
+                throw new InboundException("Inbound message from $from_number cannot be matched with record in project");
             }
 
-            $body = $_POST['Body'];
+            $body = trim($_POST['Body'] ?? '');
+            if (empty($body)) {
+                throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
+            }
+
             $this->emDebug("Received $body from $record_id");
 
-
-            // Check for Opt Out Reply
+            // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
             if (in_array($opt_msg_check,self::OPT_OUT_KEYWORDS)) {
-                $this->optOutSMS($record_id);
-                $this->emDebug("Opted out $record_id");
-                return;
+                $message = $this->setRecordOptOutStatus($record_id, true);
+                REDCap::logEvent("Opted Out of SMS", "Record $record_id has opted out into the SMS communications - received: $body","",$record_id);
+                // throw new InboundException("Opting out record $record_id with inbound message of $body");
+                return $message;
             }
 
-            // TODO: Get opt-out-sms status for number
             if ($this->isWithdrawn($record_id, $this->getProjectId())) {
                 REDCap::logEvent("Received text from withdrawn participant", "Received:  $body. No further action since withdrawn","",$record_id);
-                return;
-            }
-            // TODO: Get opt-out-sms status for number
-            if ($this->isOptedOut($record_id, $this->getProjectId())) {
-                REDCap::logEvent("Received text from opted-out participant", "Received:  $body. No further action since opted out","",$record_id);
-                return;
+                // throw new InboundException("Record $record_id is withdrawn.  Ignoring reply: $body");
+                return "";
             }
 
-            //this is a real reply
+            if ($this->getRecordOptOutStatus($record_id, $this->getProjectId())) {
+                // Check for re-opt-in
+                if (in_array($opt_msg_check, self::OPT_IN_KEYWORDS)) {
+                    $message = $this->setRecordOptOutStatus($record_id, false);
+                    REDCap::logEvent("Opted Into SMS", "Record $record_id has opted back into the SMS communications - received: $body","",$record_id);
+                    return $message;
+                } else {
+                    REDCap::logEvent("Received text from opted-out participant", "Received: $body. No further action since opted out","",$record_id);
+                    // throw new InboundException("Record $record_id has opted-out.  Ignoring reply: $body");
+                    return "";
+                }
+            }
+
+            // This is a real reply
             $this->handleReply($record_id, $from_number, $body);
 
-            // Check if there is an open conversation
-            //pushed to handleReply method
-/**
-            if ($CS = ConversationState::getActiveConversationByNumber($this, $this->formatNumber($from_number))) {
-                $this->emDebug("Found conversation " . $CS->getId());
-                $response = "Found conversation " . $CS->getId();
-                $response = $CS->parseReply();
-            } else {
-                $this->emDebug("No conversation for this number");
-                $response = "No conversations right now";
-
-            }
- */
-
+        } catch (InboundException $e) {
+            $this->emDebug("Caught Inbound Exception: " . $e->getMessage());
+            return "";
         } catch (\Exception $e) {
             $this->emError("Exception thrown: " . $e->getMessage(), $e->getTraceAsString());
-            $response = "We're sorry - but something went wrong on our end.";
+            return "We're sorry - but something went wrong on our end.";
         }
-
-        // Create response
-        $mr = new MessagingResponse();
-        $mr->message($response);
-        return $mr;
     }
 
 
@@ -472,24 +478,22 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function handleReply($record_id, $cell_number, $msg) {
         $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning',  $this->getProjectId());
 
-        //given cell_number, see what is the current state in the ConversationState
-        if ($found_cs = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
-            $this->emDebug("IN LOG ID: ". $found_cs->getId());
-            $this->emDebug("EXPECTING RESPONSES FOR CURRENT FIELD: " . $found_cs->getCurrentField());
+        // Load up the TM
+        $TM = $this->getTwilioManager($this->getProjectId());
 
-            //get FormManager to get validation and response info.
-            $fm = new FormManager($this, $found_cs->getInstrument(), $found_cs->getEventId(), $found_cs->module->getProjectId());
-            //get the TwilioManager as well
-            $tm = $this->getTwilioManager($this->getProjectId());
+        // Find ACTIVE conversations for this number
+        if ($CS = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+            $this->emDebug("Found CS#". $CS->getId() . " for Record $record_id / $cell_number at field [" . $CS->getCurrentField() . "]");
 
+            // Get FormManager to get validation and response info.
+            $FM = new FormManager($this, $CS->getInstrument(), $CS->getEventId(), $this->getProjectId());
 
-
-            //according to state table this is the current question
-            $current_field = $found_cs->getCurrentField();
-            $event_id = $found_cs->getEventId();
+            // according to state table this is the current question
+            $current_field = $CS->getCurrentField();
+            $event_id = $CS->getEventId();
 
             // Check the participant response and try to confirm it is a valid response
-            if (false !== $response = $fm->validateResponse($current_field, $msg)) {
+            if (false !== $response = $FM->validateResponse($current_field, $msg)) {
 
                 // VALID RESPONSE
                 $this->emDebug("We have validated response of $msg as $response to save in field " . $current_field);
@@ -498,23 +502,23 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
                 if ($result['errors']) {
                     $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors']);
-                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $found_cs->getEventId(),$found_cs->module->getProjectId());
+                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $CS->getEventId(),$CS->module->getProjectId());
 
                     // Since we are not validating the min/max, using REDCap save to validate and warn?
                     $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
 
-                    $instructions = $fm->getFieldInstruction($current_field);
-                    $label = $fm->getFieldLabel($current_field); // should this be added to the text??
+                    $instructions = $FM->getFieldInstruction($current_field);
+                    $label = $FM->getFieldLabel($current_field); // should this be added to the text??
 
                     $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $instructions]));
-                    $tm->sendTwilioMessage($cell_number, $outbound_sms);
+                    $TM->sendTwilioMessage($cell_number, $outbound_sms);
                     return;
 
                 }
 
                 //Since valid get next SMS to send and save field to state
-                $sms_to_send_list = $fm->getNextSMS($current_field, $record_id);
-                $active_field     = $fm->getActiveQuestion($sms_to_send_list);
+                $sms_to_send_list = $FM->getNextSMS($current_field, $record_id);
+                $active_field     = $FM->getActiveQuestion($sms_to_send_list);
                 $this->emDebug("ACTIVE FIELD: ". $active_field, $sms_to_send_list);
 
 
@@ -523,18 +527,18 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     // Send out the next set of messages
                     foreach ($sms_to_send_list as $k => $v) {
                         $sms = $v['field_label'];
-                        $tm->sendTwilioMessage($cell_number, $sms);
+                        $TM->sendTwilioMessage($cell_number, $sms);
                         $this->emDebug("Sent to $cell_number: ". $sms);
                     }
 
                     //persist  in state table
-                    $found_cs->setCurrentField($active_field);
-                    $found_cs->save(); //current field not saving?? there seems to be a need for saving after each dirty
+                    $CS->setCurrentField($active_field);
+                    $CS->save(); //current field not saving?? there seems to be a need for saving after each dirty
 
-                    $found_cs->setReminderTs();
-                    $found_cs->save();
+                    $CS->setReminderTs();
+                    $CS->save();
 
-                    $this->emDebug("Persisted to : ". $found_cs->getId());
+                    $this->emDebug("Persisted to : ". $CS->getId());
 
                 }
 
@@ -542,20 +546,28 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 if (empty($active_field)) {
                     // We are at the end of the survey
                     // $this->module->setSurveyTimestamp()
-                    $found_cs->setState('COMPLETE');
-                    $found_cs->save();
+                    $CS->setState('COMPLETE');
+                    $CS->save();
                     // TODO: Is there a 'thank you' or is that part of the descriptive...
                 }
             } else {
-                // INVALID response
+                // False means this is an invalid response for an enumerated field
                 $this->emDebug("Response of $msg was not valid for " . $current_field);
-                $nonsense_text_reply = $nonsense_text_warning . " " . $fm->getFieldInstruction($current_field);
-                $found_cs->setReminderTs();
-                $tm->sendTwilioMessage($cell_number, $nonsense_text_reply);
+
+                $nonsense_text_reply = $nonsense_text_warning . " " . $FM->getFieldInstruction($current_field);
+                $CS->setReminderTs();
+                $TM->sendTwilioMessage($cell_number, $nonsense_text_reply);
                 //TODO: repeat question
             }
 
         } else {
+            $no_open_conversation_message = $this->getProjectSetting('no-open-conversation-message', $this->getProjectId());
+            if (!empty($no_open_conversation_message)) {
+                $TM = $this->getTwilioManager($this->getProjectId());
+                $TM->sendTwilioMessage($cell_number,$no_open_conversation_message);
+
+            }
+
             $this->emDebug("No ACTIVE conversation for this number $cell_number");
             //TODO: text back?
 
@@ -580,57 +592,102 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function formatNumber($number, $type = "E164") {
         // REDCap stores numbers like '(650) 123-4567' -- convert to +16501234567
         $digits = preg_replace('/[^\d]/', '', $number);
+        $output = "";
         if ($type== "E164") {
             // For US, append a 1 to 10 digit numbers that dont start with a 1
             if (strlen($digits) === 10 && left($digits,1) != "1") {
-                $digits = "1".$digits;
+                $output = "1".$digits;
+            } else {
+                $output = $digits;
             }
-            return "+".$digits;
+            // return "+".$digits;
         } elseif ($type == "redcap") {
             if (strlen($digits) === 11 && left($digits,1,) == "1") {
-                // 16503803405
+                // 16503803405 => 6503803405
                 $digits = mid($digits, 2, 10);
             }
             if (strlen($digits) === 10) {
-                // 6503803405
-                return "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
+                // 6503803405 => (650) 380-3405
+                $output = "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
             }
         } elseif ($type == "digits") {
-            return $digits;
+            $output = $digits;
         }
-        $this->emDebug("Unable to parse $number to $digits into type $type - returning digits");
-        return $digits;
+        if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
+        return strval($output);
     }
 
 
     /**
      * Try to pull a record by the phone number
-     * @param $number
-     * @return int|string|null
+     * @param string $number
+     * @param string $project_id
+     * @return string|null
+     * @throws ConfigSetupException
      */
-    public function getRecordIdByCellNumber($number) {
-        $phone_field = $this->getProjectSetting('phone-field');
-        $phone_field_event_id = $this->getProjectSetting('phone-field-event-id');
+    public function getRecordIdByCellNumber($number, $project_id = '') {
+
         $number_in_redcap_format = $this->formatNumber($number, 'redcap');
+        if (empty($number_in_redcap_format)) {
+            $this->emDebug("Invalid number: $number");
+            $result = null;
+        } else {
+            // Try to look up record
 
-        $fields = [REDCap::getRecordIdField()];
-        $filter_logic = (REDCap::isLongitudinal() ? '[' . REDCap::getEventNames(true,true,$phone_field_event_id) . ']' : '') .
-            '[' . $phone_field . '] = "' . $number_in_redcap_format . '"';
+            // We need the table_pk from Proj for getData to be cron safe
+            if (empty($project_id)) $project_id = $this->getProjectId();
+            global $Proj;
+            $_Proj = ($Proj && $Proj->project_id == $project_id) ? $Proj : new Project($project_id);
+            $record_id_field = $_Proj->table_pk;
 
-        $params = [
-            'return_format' => 'array',
-            'filterLogic' => $filter_logic,
-            'fields' => $fields
-        ];
-        $results = REDCap::getData($params);
+            $this_field_config          = 'phone-field';
+            $this_field_event_id_config = 'phone-field-event-id';
+            $this_field                 = $this->getProjectSetting($this_field_config, $project_id);
+            $this_field_event_id        = $this->getProjectSetting($this_field_event_id_config, $project_id);
+            if (empty($this_field) && empty($this_field_event_id)) {
+                throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup for $this_field_config / $this_field_event_id_config.");
+            }
 
-        if (count($results) > 1) {
-            $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)));
+            // Build logic
+            $filter_logic_event = ($_Proj->longitudinal ? '[' . $_Proj->getUniqueEventNames($this_field_event_id) . ']' : '');
+            $filter_logic = $filter_logic_event . '[' . $this_field . '] = "' . $number_in_redcap_format . '"';
+
+            $params = [
+                'return_format' => 'array',
+                'filterLogic' => $filter_logic,
+                'fields' => [ $record_id_field ],
+                'project_id' => $project_id
+            ];
+            $results = REDCap::getData($params);
+
+            if (count($results) > 1) {
+                $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)) . " -- taking first value");
+            }
+            $result = empty($results) ? null : strval(key($results));
+            $this->emDebug("Query for $number", $result);
         }
-        $result = empty($results) ? null : key($results);
-        $this->emDebug("Query for $number", $result);
         return $result;
     }
+
+
+
+
+    private function getOptInMessage() {
+        // TODO: allow override with project setting
+        return self::DEFAULT_OPT_IN_MESSAGE;
+    }
+
+    private function getOptOutMessage() {
+        // TODO: allow override with project setting
+        return self::DEFAULT_OPT_OUT_MESSAGE;
+    }
+
+
+
+
+
+
+
 
     public function getNumberStatus($number) {
         $numberStatus = $this->getProjectSetting(self::NUMBER_PREFIX . $number);
@@ -718,61 +775,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
 
-    /**
-     *
-     * Parses a string for arrays of actiontags (optinally filtering by the supplied tag)
-     *
-     * @param $string           The string to be parsed for actiontags (in the format of <code>@FOO=BAR or @FOO={"param":"bar"}</code>
-     * @param null $tag_only    If you wish to select a single tag
-     * @return array|bool       returns the match array with the key equal to the tag and an array containing keys of 'params, params_json and params_text'
-     */
-    function parseActionTags($string, $tag_only = null)
-    {
-        $re = "/  (?(DEFINE)
-     (?<number>    -? (?= [1-9]|0(?!\\d) ) \\d+ (\\.\\d+)? ([eE] [+-]? \\d+)? )
-     (?<boolean>   true | false | null )
-     (?<string>    \" ([^\"\\\\\\\\]* | \\\\\\\\ [\"\\\\\\\\bfnrt\\/] | \\\\\\\\ u [0-9a-f]{4} )* \" )
-     (?<array>     \\[  (?:  (?&json)  (?: , (?&json)  )*  )?  \\s* \\] )
-     (?<pair>      \\s* (?&string) \\s* : (?&json)  )
-     (?<object>    \\{  (?:  (?&pair)  (?: , (?&pair)  )*  )?  \\s* \\} )
-     (?<json>      \\s* (?: (?&number) | (?&boolean) | (?&string) | (?&array) | (?&object) )  ) \\s*
-     (?<tag>       \\@(?:[[:alnum:]])*)
-    )
-
-    (?'actiontag'
-    (?:\\@(?:[[:alnum:]_-])*)
-    )
-    (?:\\=
-    (?:
-     (?'params'
-      (
-       (?:(?'params_json'(?&json)))
-       |
-       (?:(?'params_text'(?:[[:alnum:]_-]+)))
-      )
-     )
-    )
-    )?/ixm";
-
-        preg_match_all($re, $string, $matches);
-
-        // Return false if none are found
-        if (count($matches['actiontag']) == 0) return false;
-
-        $result = array();
-
-        foreach ($matches['actiontag'] as $i => $tag) {
-            $tag = strtoupper($tag);
-            if ($tag_only && ($tag != strtoupper($tag_only))) continue;
-            $result[$tag] = array(
-                'params' => $matches['params'][$i],
-                'params_json' => $matches['params_json'][$i],
-                'params_text' => $matches['params_text'][$i]
-            );
-        }
-
-        return $result;
-    }
 
 
 

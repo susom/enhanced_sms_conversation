@@ -30,21 +30,21 @@ $FM = new FormManager($module, 'survey_1', 167,81);
 //var_dump($FM);
 
 $record = "34";
-$q = $FM->getMessageOptions('',$record);
+$q = $FM->setStartingField('',$record);
 var_dump($q);
 
-$q = $FM->getMessageOptions($q['current_field'], $record);
+$q = $FM->setStartingField($q['current_field'], $record);
 var_dump($q);
 
 $nf = $FM->getNextField($q['current_field']);
-$q = $FM->getMessageOptions($nf, $record);
+$q = $FM->setStartingField($nf, $record);
 var_dump($nf,$q);
 
-$q = $FM->getMessageOptions($q['current_field'], $record);
+$q = $FM->setStartingField($q['current_field'], $record);
 var_dump($q['current_field'],$q);
 
 $nf = $FM->getNextField($q['current_field']);
-$q = $FM->getMessageOptions($nf, $record);
+$q = $FM->setStartingField($nf, $record);
 var_dump($nf,$q);
 
 

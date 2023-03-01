@@ -14,6 +14,31 @@ use \Project;
  * This module does its best to set:
  * source, source_id, project_id, record_id, event_id, instance, and event_name
  *
+ *
+        // Immediate ASI works:
+        [source] => ASI
+        [source_id] => 177
+        [project_id] => 81
+        [record_id] => 17
+        [event_id] => 167
+        [instance] => 1
+        [event_name] => event_1_arm_1
+        [instrument] => survey_1
+        [survey_id] => 177
+
+        // immediate alert - instgrument isn't correct
+        [source] => Alert
+        [source_id] => 51
+        [project_id] => 81
+        [record_id] => 18
+        [event_id] => 167
+        [instance] => 1
+        [event_name] => event_1_arm_1
+        [instrument] => record_information
+        [survey_id] =>
+ *
+ *
+ *
  */
 class MessageContext {
     private $module;
