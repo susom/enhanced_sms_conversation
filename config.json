@@ -157,7 +157,7 @@
         },
         {
             "key": "sms-opt-out-field",
-            "name": "<b>SMS Opt Out field</b><br>This text field will store whether or not a user as opted out of SMS communication by replying with 'STOP' or 'OPT-OUT'<br>If someone has opted out, when we try to deliver a message we get an error code and will save the date/time this occurred to this field.  If the field has any value, messages will NOT be sent to the number.",
+            "name": "<b>SMS Opt Out field</b><br>This must be a TEXT field.  If empty, the participant is assumed to be opted-in.  If it has a value, the participant has opted-out of SMS communication.  Future outbound messages will NOT be sent if opted-out.  A participant can opt-out by replying with 'STOP' or 'OPT-OUT'",
             "required": true,
             "type": "field-list"
         },
@@ -168,20 +168,14 @@
             "type": "event-list"
         },
         {
-            "key": "study-withdrawn-field",
-            "name": "<b>Study Withdrawn Field</b><br>Field contains the withdrawn status at the study level. Stopping SMS does not necessarily withdraw person from study.",
-            "required": true,
-            "type": "field-list"
-        },
-        {
-            "key": "study-withdrawn-field-event-id",
-            "name": "<b>Withdrawn field Event ID</b><br>If project is longitudinal, please select the event containing the phone field",
+            "key": "study-withdrawn-logic",
+            "name": "<b>Study Withdrawn Logic</b><br><i>(Optional)</i> If specified, this LOGICAL EXPRESSION will be evaluated prior to sending outbound messages.  If the result is TRUE, the participant is deemed to be withdrawn from the study and outbound messages will not be sent.  Stopping SMS does not necessarily withdraw person from study.  If longitudinal, be sure to include event info in the logical expression.<br><i>e.g.</i><code>[event_1_arm_1][calc_withdrawn]='1'</code>",
             "required": false,
-            "type": "event-list"
+            "type": "text"
         },
         {
             "key": "disable-outgoing-sms",
-            "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will not send twilio messages",
+            "name": "<b>Disable Outgoing Twilio SMS</b><br><i>(optional)</i> If checked, module will prevent ALL outbound SMS messages for this project regardless of record opt-out status",
             "required": true,
             "type": "checkbox"
         },
