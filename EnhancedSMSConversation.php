@@ -272,28 +272,32 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws ConfigSetupException
      */
     public function getRecordOptOutStatus($record_id, $project_id) {
-        $sms_opt_out = $this->getFieldDataFromConfigSettings($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id );
-        return $sms_opt_out["1"] == 1;
+        $sms_opt_out = $this->getFieldDataFromConfigSettings($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id ) ?? '';
+        return $sms_opt_out !== '';
     }
 
 
     /**
-     * Determine if a record is withdrawn
+     * Determine if a record is withdrawn using the study-withdrawn-logic
      * @param string $record_id
      * @param int $project_id
      * @return bool
-     * @throws ConfigSetupException
      */
     public function isWithdrawn($record_id, $project_id) {
-        $withdrawn = $this->getFieldDataFromConfigSettings($record_id, 'study-withdrawn-field', 'study-withdrawn-field-event-id', $project_id);
-        return $withdrawn["1"] == 1;
+        if( $withdrawn_logic = $this->getProjectSetting('study-withdrawn-logic') ?? false ) {
+            $result = REDCap::evaluateLogic($withdrawn_logic, $project_id, $record_id) == "1";
+            if ($result) $this->emDebug("$record_id is withdrawn");
+        } else {
+            $result = false;
+        };
+        return $result;
     }
 
 
     /**
-     * Get the phone number for a record based on the project settings
+     * Get the phone number in E164 format for a record based on the project config settings
      * @param $record_id
-     * @return mixed|string
+     * @return string
      * @throws ConfigSetupException
      */
     public function getRecordPhoneNumber($record_id, $project_id) {
@@ -311,7 +315,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * Change the record opt-in/opt-out status and send a confirming text message to record.
      * @param $record_id
      * @param bool $opt_out
-     * @return bool returns false if something went wrong
+     * @return string returns empty if something went wrong
      * @throws ConfigSetupException
      */
     public function setRecordOptOutStatus($record_id, $opt_out = true) {
@@ -323,27 +327,37 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup around $this_field_config and $this_field_event_id_config");
         }
 
-        $checkbox_value = $opt_out ? 1 : 0;
-        $data = [
-            $record_id => [
-                $this_field_event_id => [
-                    $this_field[1] => $checkbox_value ]
-            ]
+        $value = $opt_out ? date("Y-m-d H:i:s") : '';
+        $data = [ $record_id => [ $this_field_event_id => [ $this_field => $value ]]];
+
+        // Switching from checkbox to text value
+        // $checkbox_value = $opt_out ? 1 : 0;
+        // $data = [
+        //     $record_id => [
+        //         $this_field_event_id => [
+        //             $this_field[1] => $checkbox_value ]
+        //     ]
+        // ];
+
+        $params = [
+            'data'=>$data,
+            'overwriteBehavior'=>'overwrite'
         ];
-        $response = REDCap::saveData('array', $data);
+
+        $response = REDCap::saveData($params);
 
         if (empty($response['errors'])) {
-            $this->emDebug("Updated record $record_id opt-out status to $checkbox_value");
+            $this->emDebug("Updated record $record_id opt-out status to $value");
 
             // TODO: send message to confirm change - since this can only be updated via an inbound message,
             // we can use the reply to return the message.
             // $TM = $this->getTwilioManager();
             // $number = $this->getRecordPhoneNumber($record_id, $this->getProjectId());
-            $message = $opt_out ? $this->getOptOutMessage() : $this->getOptInMessage();
+            $sms = $opt_out ? $this->getOptOutMessage() : $this->getOptInMessage();
             // $TM->sendTwilioMessage($number, $message);
-            return $message;
+            return $sms;
         } else {
-            $this->emError("Updated record $record_id opt-out status to $checkbox_value WITH ERRORS:", $response);
+            $this->emError("Updated record $record_id opt-out status to $value WITH ERRORS:", $response);
             return "";
         }
     }
