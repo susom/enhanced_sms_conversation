@@ -107,12 +107,15 @@ $config = $module->getConfig();
 global $proj;
 
 $event_id = 167;
-$FM = new FormManager($module, 'survey_1', 167,81);
 
 //var_dump($FM);
 
 $record = "34";
 $start_field = '';
+
+$FM = new FormManager($module, 'survey_1', $start_field, $record, $event_id,81);
+
+
 $q = $FM->setStartingField($start_field,$record);
 echo "1-----\n[ $start_field ]\n";
 $current_field = $FM->getCurrentField();

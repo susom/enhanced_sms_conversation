@@ -11,20 +11,31 @@ class FormManager {
     /** @var EnhancedSMSConversation $module */
     private $module;
     private $form;
+    private $start_field;
+    private $record_id;
     private $event_id;
+    private $instance;
     private $project_id;
     private $form_script;    // Parsed version of data dictionary
 
 
-    private $start_field;
-    private $pre_labels = [];
-    private $current_question;
-    private $current_choices;
-    private $current_field;
 
+
+    private $current_field;  // This is the current field that should be saved to the conversation state after delivery of messages
+
+    private $descriptive_messages = [];
+    private $current_question;
+    private $instructions;  // This is how to complete the question (is choices for enum)
+    private $choices;       // This is an array of the valid choices
+
+    private $invalid_response_message;  // This is the message we give to people with an invalid response
 
     const VALID_ENUMERATED_FIELD_TYPES = [
         "yesno", "truefalse", "radio", "dropdown"
+    ];
+
+    const VALID_TEXT_TYPES = [
+        "text"
     ];
 
     // A second attempt at using aliases to match responses (make sure all are lowercase)
@@ -35,18 +46,17 @@ class FormManager {
         "False-like"    => [ 'false', 'f', 'no', 'n', 'nope' ]
     ];
 
-    const VALID_TEXT_TYPES = [
-        "text"
-    ];
+    public function __construct($module, $form, $start_field, $record_id, $event_id, $project_id, $instance = 1) {
+        $this->module      = $module;
+        $this->form        = $form;
+        $this->start_field = $start_field;
+        $this->record_id   = $record_id;
+        $this->event_id    = $event_id;
+        $this->project_id  = $project_id;
+        $this->instance    = $instance;
 
-    public function __construct($module, $form, $event_id, $project_id) {
-        $this->module     = $module;
-        $this->form       = $form;
-        $this->event_id   = $event_id;
-        $this->project_id = $project_id;
-
-        // Parse the metadata for this form
-        $this->form_script = $this->createFormScript();
+        // Create Parse the metadata for this form
+        $this->buildContext();
     }
 
     /**
@@ -57,94 +67,196 @@ class FormManager {
      * @return array
      * @throws \Exception
      */
-    private function createFormScript() {
+    private function buildContext() {
 
-        $dict = REDCap::getDataDictionary($this->project_id, "array");
+        $dict = REDCap::getDataDictionary($this->project_id, "array", false, null, [$this->form]);
 
-        $form_script = array();
+        /*
+         * "field_name":"desc_1",
+         * "form_name":"survey_1",
+         * "section_header":"",
+         * "field_type":"descriptive",
+         * "field_label":"Here is a descriptive field",
+         * "select_choices_or_calculations":"",
+         * "field_note":"",
+         * "text_validation_type_or_show_slider_number":"",
+         * "text_validation_min":"",
+         * "text_validation_max":"",
+         * "identifier":"",
+         * "branching_logic":"",
+         * "required_field":"",
+         * "custom_alignment":"",
+         * "question_number":"",
+         * "matrix_group_name":"",
+         * "matrix_ranking":"",
+         * "field_annotation":""
+         */
 
-        foreach($dict as $field_name => $field) {
-            $form_name          = $field["form_name"];
+        $valid_field_types = array_merge(
+            self::VALID_ENUMERATED_FIELD_TYPES,
+            self::VALID_TEXT_TYPES,
+            ["descriptive"]
+        );
 
-            // Skip if not this form
-            if ($form_name !== $this->form) continue;
+        foreach($dict as $field_name => $dd) {
+            // Start on the first field of the form if not already set
+            if (empty($this->start_field)) $this->start_field = $field_name;
 
-            $field_type             = $field["field_type"];
-            $annotation_arr         = $this->parseActionTags($field["field_annotation"]);
-            $field_label            = $field["field_label"];
-            $choices                = $field["select_choices_or_calculations"];
-            $branching_logic        = $field["branching_logic"];
-            $text_validation_min    = $field["text_validation_min"];
-            $text_validation_max    = $field["text_validation_max"];
+            //
+
+            // Parse out action tags
+            $action_tags = $this->parseActionTags($dd["field_annotation"]);
 
             // Skip any fields that are hidden-survey
-            if (isset($annotation_arr["@HIDDEN-SURVEY"])) continue;
+            if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
 
             // Skip fields that have @ESC-IGNORE
-            if (isset($annotation_arr[$this->module::ACTION_TAG_IGNORE_FIELD])) {
+            if (isset($action_tags[$this->module::ACTION_TAG_IGNORE_FIELD])) {
                 $this->module->emDebug("Skipping question $field_name as is tagged as ESC-IGNORE");
                 continue;
             }
 
-            $valid_field_types = array_merge(
-                self::VALID_ENUMERATED_FIELD_TYPES,
-                self::VALID_TEXT_TYPES,
-                ["descriptive"]
-            );
+            // Skip invalid field_types regardless
+            if (!in_array($dd["field_type"], $valid_field_types)) continue;
 
-            if (!in_array($field_type, $valid_field_types)) {
-                $this->module->emDebug("Skipping question $field_name as $field_type is not supported");
+
+            // Check to see if we skip question due to branching logic
+            if ($this->skipDueToBranching($dd['branching_logic'])) {
+                $this->module->emDebug("Skipping $field_name for record $this->record_id due to branching logic");
                 continue;
             }
 
-            // Build customized metadata object for the given field.  This does not yet include BRANCHING or PIPING
-            $meta = [
-                "field_name"        => $field_name,
-                "field_type"        => $field_type,
-                "field_label"       => $field_label,
-                "branching_logic"   => $branching_logic,
-                "instructions"      => '',
-                "action_tags"       => $annotation_arr
-            ];
-
-            // PROCESS PRESET CHOICES
-            // Create an array of all choices for enumerated types
-            if (in_array($field_type, self::VALID_ENUMERATED_FIELD_TYPES)) {
-                // For some types, we need to create the choices:
-                if($field_type == "yesno") {
-                    $choices = "1,Yes | 0,No";
-                    $meta["instructions"] = "Please respond with Yes or No";
-                } elseif ($field_type == "truefalse") {
-                    $choices = "1,True | 0,False";
-                    $meta["instructions"] = "Please respond with True or False";
-                }
-
-                // Blow up the choices string into an array
-                $preset_choices = array();
-                $choice_pairs = explode("|",$choices);
-                foreach($choice_pairs as $pair){
-                    list($k, $v) = array_map('trim', explode(",",$pair,2));
-                    $preset_choices[$k] = $v;
-                }
-                $meta["preset_choices"] = $preset_choices;
+            // Add section headers if present
+            if ($dd['section_header']) {
+                // Append section header
+                $this->descriptive_messages[] = $this->pipe($dd['section_header']);
             }
 
-            if ($field_type == 'text') {
-                if (!empty($text_validation_max) && !empty($text_validation_min)) {
-                    $meta["instructions"] = "Please text a value between $text_validation_min and $text_validation_max";
+            if ($dd["field_type"] == "descriptive") {
+                $this->descriptive_messages[] = $this->pipe($dd['field_label']);
+            } elseif (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
+                $this->current_question = $this->pipe($dd['field_label']);
+                $this->choices = $this->parseChoices($dd);
+                $this->instructions = "TODO: put choice options in here ";
+                $this->current_field = $field_name;
+                break;
+            } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
+                $this->current_question = $this->pipe($dd['field_label']);
+                if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+                    $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
                 } elseif (!empty($text_validation_max)) {
-                    $meta["instructions"] = "Please text a value less than or equal to $text_validation_max";
+                    $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
                 } elseif (!empty($text_validation_min)) {
-                    $meta["instructions"] = "Please text a greater than or equal to $text_validation_max";
+                    $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
                 }
-
+                $this->current_field = $field_name;
+                break;
+            } else {
+                $this->module->emError("Unable to parse this dd type:", $dd);
             }
-
-            $form_script[$field_name] = $meta;
         }
+            // // // Set the current question to the first question if it is currently empty
+            // // if (empty($start_field)) $start_field = $this->getNextField();
+            // // $this->start_field = $start_field;
+            // //
+            // // // Loop through the script until we find the start_field
+            // // $found = false;
+            // // foreach ($this->form_script as $field_name => $meta) {
+            // //     // Once we reach the start question, we stop skipping and start processing
+            // //     if (!$found && $field_name !== $start_field) continue;
+            // //
+            // //     // We've identified our starting position in the form_script
+            // //     $found=true;
+            // //     $this->module->emDebug("Started at $start_field - now at $field_name");
+            // //
+            // //
+            // //     // Process Label for current question
+            // //     $label_raw = $meta['field_label'];
+            // //     $label = $this->pipe($label_raw,$record_id,$instance);
+            // //     if ($label !== $label_raw) {
+            // //         $this->module->emDebug("Piping changed label:", $label_raw, $label);
+            // //     }
+            // //
+            // //     // If it is descriptive, we continue:
+            // //     if ($meta['field_type'] == "descriptive") {
+            // //         // Load the descriptive label into the pre_labels array
+            // //         if (!empty($label)) $pre_labels[] = $label;
+            // //         // $this->module->emDebug("$field_name is descriptive, so we will go on to the next field");
+            // //     } else {
+            // //         // We must have a question where we want to ask something - let's mark this as the current_field
+            // //         $current_field = $field_name;
+            // //
+            // //         // Let's get the label
+            // //         $label_raw = empty($label) ? '' : $label;
+            // //         $question = $this->pipe($label_raw, $record_id, $instance);
+            // //
+            // //         if (!empty($meta['preset_choices'])) {
+            // //             $opts = [];
+            // //             foreach ($meta['preset_choices'] as $k => $v) {
+            // //                 // Check value label for piping:
+            // //                 $this_v = $this->pipe($v,$record_id,$instance);
+            // //                 $opts[] = "[$k] $this_v";
+            // //             }
+            // //             $choices = implode(", ", $opts);
+            // //         }
+            // //         break;  // Stop at first question that needs an answer
+            // //     }
+            // // }
+            // //
+            // // // Save all the current context
+            // // $this->start_field      = $start_field;
+            // // $this->current_field    = $current_field;
+            // // $this->current_choices  = $choices;
+            // // $this->current_question = $question;
+            // // $this->pre_labels       = $pre_labels;
+            // //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            // $field_type             = $dd["field_type"];
+            // $annotation_arr         = $this->parseActionTags($dd["field_annotation"]);
+            // $field_label            = $dd["field_label"];
+            // $choices                = $dd["select_choices_or_calculations"];
+            // $branching_logic        = $dd["branching_logic"];
+            // $text_validation_min    = $dd["text_validation_min"];
+            // $text_validation_max    = $dd["text_validation_max"];
+            //
+            //
+            // // Build customized metadata object for the given field.  This does not yet include BRANCHING or PIPING
+            // $meta = [
+            //     "field_name"        => $field_name,
+            //     "field_type"        => $field_type,
+            //     "field_label"       => $field_label,
+            //     "branching_logic"   => $branching_logic,
+            //     "instructions"      => '',
+            //     "action_tags"       => $annotation_arr
+            // ];
+            //
+            // // PROCESS PRESET CHOICES
+            // // Create an array of all choices for enumerated types
+            //
+            //     // Blow up the choices string into an array
+            //     $preset_choices = array();
+            //     $choice_pairs = explode("|",$choices);
+            //     foreach($choice_pairs as $pair){
+            //         list($k, $v) = array_map('trim', explode(",",$pair,2));
+            //         $preset_choices[$k] = $v;
+            //     }
+            //     $meta["preset_choices"] = $preset_choices;
+            // }
+            //
+            //
+            // }
+            //
+            // $form_script[$field_name] = $meta;
+        // }
 
-        $this->module->emDebug("Form script: ", $form_script);
-        return $form_script;
+        // $this->module->emDebug("Form script: ", $form_script);
+        // return $form_script;
     }
 
 
@@ -163,13 +275,13 @@ class FormManager {
     /**
      * Pipe a string for the current record
      * @param $text
-     * @param $record_id
-     * @param $instance
      * @return string
      */
-    private function pipeText($text, $record_id, $instance) {
-        return trim(Piping::replaceVariablesInLabel($text, $record_id, $this->event_id, $instance, array(),
+    private function pipe($text) {
+        $pipe = trim(Piping::replaceVariablesInLabel($text, $this->record_id, $this->event_id, $this->instance, array(),
             false, $this->project_id, false, $this->form));
+        $strip = trim(strip_tags($pipe));
+        return $strip;
     }
 
 
@@ -373,7 +485,7 @@ class FormManager {
 
             // Process Label for current question
             $label_raw = $meta['field_label'];
-            $label = $this->pipeText($label_raw,$record_id,$instance);
+            $label = $this->pipe($label_raw,$record_id,$instance);
             if ($label !== $label_raw) {
                 $this->module->emDebug("Piping changed label:", $label_raw, $label);
             }
@@ -389,13 +501,13 @@ class FormManager {
 
                 // Let's get the label
                 $label_raw = empty($label) ? '' : $label;
-                $question = $this->pipeText($label_raw, $record_id, $instance);
+                $question = $this->pipe($label_raw, $record_id, $instance);
 
                 if (!empty($meta['preset_choices'])) {
                     $opts = [];
                     foreach ($meta['preset_choices'] as $k => $v) {
                         // Check value label for piping:
-                        $this_v = $this->pipeText($v,$record_id,$instance);
+                        $this_v = $this->pipe($v,$record_id,$instance);
                         $opts[] = "[$k] $this_v";
                     }
                     $choices = implode(", ", $opts);
@@ -448,6 +560,26 @@ class FormManager {
     }
 
 
+    public function parseChoices($dd)
+    {
+        $choices = $dd['select_choices_or_calculations'];
+        if ($dd['field_type'] == "yesno") {
+            $choices = "1, Yes | 0, No";
+        } elseif ($dd['field_type'] == "truefalse") {
+            $choices = "1, True | 0, False";
+        }
+
+        // Blow up the choices string into an array
+        $preset_choices = array();
+        $choice_pairs = explode("|", $choices);
+        foreach ($choice_pairs as $pair) {
+            list($k, $v) = array_map('trim', explode(",", $pair, 2));
+            $choice_label = $this->pipe($v);
+            $preset_choices[$k] = $choice_label;
+        }
+        return $preset_choices;
+    }
+
 
     /**
      * Get Next Field
@@ -478,19 +610,17 @@ class FormManager {
 
 
     /**
-     * Determine whether or not a question is branched
-     * @param $meta
-     * @param $record_id
+     * Determine whether or not a question should be skipped
+     * @param string $branching_logic
      * @return bool
      */
-    private function skipDueToBranching($branching_logic, $record_id) {
-        $valid = true;
+    private function skipDueToBranching($branching_logic) {
+        $skip = false;
         if (!empty($branching_logic)) {
-            $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $this->event_id);
-            $this->module->emDebug("Evaluating branching logic for $record_id in event " . $this->event_id,
-                                   $branching_logic, $valid);
+            $skip = !\REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
+            $this->module->emDebug("Evaluating branching logic for $this->record_id in event $this->event_id with $branching_logic", !$skip);
         }
-        return !$valid;
+        return $skip;
     }
 
 
