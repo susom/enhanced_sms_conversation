@@ -145,6 +145,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 "current_field" => $FM->getCurrentField()
             ]);
             $CS->setState("ACTIVE");
+            $this->emDebug($CS);
             $CS->setExpiryTs();
             $CS->setReminderTs();
             $CS->save();
