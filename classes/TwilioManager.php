@@ -5,8 +5,7 @@ use REDCap;
 // use \Twilio\Rest\Client;
 use \Exception;
 
-require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio/Rest/Twilio.php";
-require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services"
+// require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
 
 /**
  * Helper module for sending messages
