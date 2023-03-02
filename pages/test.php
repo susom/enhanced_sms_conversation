@@ -100,6 +100,12 @@ $config = $module->getConfig();
 <?php
 
 
+$TM = new TwilioManager($module,$module->getProjectId());
+
+var_dump($TM);
+exit();
+
+
 // var_dump($config);
 
 // Testing the metadata parser functions:

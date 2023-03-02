@@ -1,10 +1,11 @@
 <?php
-
 namespace Stanford\EnhancedSMSConversation;
 
 use REDCap;
 use \Twilio\Rest\Client;
 use \Exception;
+
+require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
 
 /**
  * Helper module for sending messages

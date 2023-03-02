@@ -165,7 +165,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return null|array
      */
     public function redcap_module_link_check_display($project_id, $link) {
-        $this->emDebug("Checking for $project_id",$link);
+        // $this->emDebug("Checking for $project_id",$link);
         if (isset($link['superuseronly']) && $link['superuseronly']) {
             if (!$this->getUser()->isSuperUser()) return null;
         }
