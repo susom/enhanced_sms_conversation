@@ -61,7 +61,7 @@ class ConversationState extends SimpleEmLogObject
             $this->module->emDebug("default-conversation-expiry-minutes = '$default_expiry_min'");
             $ts = time() + ($default_expiry_min * 60);
         }
-        $this->module->emDebug("TS BEFORE SAVE, $ts);
+        $this->module->emDebug("TS BEFORE SAVE", $ts);
         $this->setValue('expiry_ts', $ts);
     }
 
