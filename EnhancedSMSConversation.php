@@ -4,6 +4,7 @@ namespace Stanford\EnhancedSMSConversation;
 require_once "emLoggerTrait.php";
 require_once "vendor/autoload.php";
 require_once "classes/ConversationState.php";
+require_once "classes/MessageHistory.php";
 require_once "classes/MessageContext.php";
 require_once "classes/FormManager.php";
 require_once "classes/TwilioManager.php";

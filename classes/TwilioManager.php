@@ -6,7 +6,9 @@ use REDCap;
 use \Twilio\Rest\Client;
 use \Exception;
 
-// require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
+/**
+ * Helper module for sending messages
+ */
 class TwilioManager {
     /** @var EnhancedSMSConversation $module */
     private $module;
@@ -75,12 +77,26 @@ class TwilioManager {
                     'body' => $message
                 ]
             );
-            $this->module->emDebug("SMS RESPONSE: " . json_encode($sms));
+            $this->module->emDebug("SEND SMS RESPONSE: " . json_encode($sms));
             if (!empty($sms->error_code) || !empty($sms->error_message)) {
-                $error_message = "Error #" . $sms->error_code . " - " . $sms->error_message;
+                $error_message = "Error #" . $sms->errorCode . " - " . $sms->errorMessage;
                 $this->module->emError($error_message);
                 throw new Exception ($error_message);
             }
+
+            // Save a copy of the outgoing message
+            $MH = new MessageHistory($this->module);
+            $MH->setValues([
+                'from_number' => $this->twilio_number,
+                'to_number' => $to,
+                'body' => $message,
+                'error_code' => $sms->errorCode,
+                'error_message' => $sms->errorMessage,
+                'status' => $sms->status,
+                'sid' => $sms->sid
+            ]);
+            $MH->save();
+
         } catch (\Exception $e) {
             REDCap::logEvent("Error sending Twilio message from number $to_number", $e->getMessage());
             $this->module->emError("Exception when sending sms: " . $e->getMessage());
