@@ -290,7 +290,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @return bool
      */
     public function isWithdrawn($record_id, $project_id) {
-        if( $withdrawn_logic = $this->getProjectSetting('study-withdrawn-logic') ?? false ) {
+        if( $withdrawn_logic = $this->getProjectSetting('study-withdrawn-logic', $project_id) ?? false ) {
             $result = REDCap::evaluateLogic($withdrawn_logic, $project_id, $record_id) == "1";
             if ($result) $this->emDebug("$record_id is withdrawn");
         } else {
