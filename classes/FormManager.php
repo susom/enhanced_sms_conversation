@@ -125,7 +125,7 @@ class FormManager {
             // Skip any fields that are hidden-survey
             if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
 
-            // Skip fields that have @ESC-IGNORE
+            // Skip fields that have @ESMS-IGNORE
             if (isset($action_tags[$this->module::ACTION_TAG_IGNORE_FIELD])) {
                 $this->module->emDebug("Skipping question $field_name as is tagged as ESC-IGNORE");
                 continue;

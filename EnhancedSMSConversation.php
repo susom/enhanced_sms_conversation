@@ -21,10 +21,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     const NUMBER_PREFIX = "NUMBER:";
 
-    const ACTION_TAG_PREFIX = "@ESC";
-    const ACTION_TAG_IGNORE_FIELD = "@ESC_IGNORE";
+    const SUBJECT_TAG_FOR_EMAIL = "@ESMS";
 
-    const ACTION_TAG_VALIDATION_MESSAGE = "@ESC_VALIDATION_MESSAGE";
+    const ACTION_TAG_IGNORE_FIELD = "@ESMS-IGNORE";
+
+    // TODO: Reimplement this function
+    const ACTION_TAG_INVALID_RESPONSE = "@ESMS-INVALID-RESPONSE";
 
     const GENERIC_SMS_REPLY_ERROR = "We're sorry - but something went wrong on our end.";
 
@@ -65,7 +67,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function redcap_email($to, $from, $subject, $message, $cc, $bcc, $fromName, $attachments) {
         // Exit if this is not an @ESMS email
-        if (strpos($message, "@ESMS") === false) return true;
+        if (strpos($subject, "@ESMS") === false) return true;
 
         $this->emDebug("This email is an ESMS email");
 

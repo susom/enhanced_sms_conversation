@@ -37,7 +37,7 @@
                 "url": "pages/detail.php"
             },
             {
-                "name": "ESC: Admin Test Page",
+                "name": "ESMS: Superuser Testing",
                 "superuseronly": true,
                 "icon": "fas fa-cog",
                 "url": "pages/test.php"
@@ -151,7 +151,7 @@
         },
         {
             "key": "nonsense-text-warning",
-            "name": "<b>Default Nonsense Text Warning</b><br><br>Upon receipt of a text that does not match an expected response, this message will be included in the reply message in this format. <br> <THIS MESSAGE><CURRENT QUESTION INSTRUCTIONS><br>This value can be overridden on a per-question basis using the actiontag, <i>e.g.</i> <code>@ESC_CUSTOM_VALIDATION_MESSAGE=\"You must enter a number between 5 and 10\"</code>",
+            "name": "<b>Default Nonsense Text Warning</b><br><br>Upon receipt of a text that does not match an expected response, this message will be included in the reply message in this format. <br> <THIS MESSAGE><CURRENT QUESTION INSTRUCTIONS><br>This value can be overridden on a per-question basis using the actiontag, <i>e.g.</i> <code>@ESMS-INVALID-RESPONSE=\"You must enter a number between 5 and 10\"</code>",
             "required": true,
             "type": "text"
         },
