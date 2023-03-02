@@ -3,10 +3,12 @@
 namespace Stanford\EnhancedSMSConversation;
 
 require_once "SimpleEmLogObject.php";
-require_once "FormManager.php";
-use Twilio;
-use REDCap;
 
+
+/**
+ * The Conversation State extends the Simple EM Log Object to provide a data store for all conversations
+ *
+ */
 class ConversationState extends SimpleEmLogObject
 {
     /** @var EnhancedSMSConversation $this->module */
@@ -20,6 +22,7 @@ class ConversationState extends SimpleEmLogObject
         'instrument',
         'event_id',
         'instance',
+        'survey_id',        // Survey ID
         'cell_number',
         'current_field',
         'reminder_ts',      // each time participant responds, we re-set the reminder time
@@ -44,34 +47,43 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
-    public function setExpiryTs($project_id) {
-        $default_expiry = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id);
-        if (!empty($default_expiry)) {
-            $this->setValue('expiry_ts', time() + ($default_expiry * 60));
+    /**
+     * Set Expiration TS to value if supplied, otherwise use the default-conversation-expiry-minutes
+     * @param $ts
+     * @return void
+     */
+    public function setExpiryTs($ts = null) {
+        $project_id = $this->getValue('project_id');
+        if (!empty($ts)) {
+            $default_expiry_min = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id) ?? 0;
+            $ts = time() + ($default_expiry_min * 60);
         }
+        $this->setValue('expiry_ts', $ts);
     }
 
-    public function setReminderTs($project_id,$ts = null) {
+    /**
+     * Sets the reminder_ts value if supplied, otherwise use the default-conversation-reminder-minutes
+     * @param $project_id
+     * @param $ts
+     * @return void
+     */
+    public function setReminderTs($ts = null) {
+        $project_id = $this->getValue('project_id');
         if (empty($ts)) {
-            $default_reminder = $this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id);
-            $ts = time() + ($default_reminder * 60);
+            $default_reminder_min = $this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id);
+            $ts = time() + ($default_reminder_min * 60);
         }
         $this->setValue('reminder_ts', $ts);
     }
 
 
-    public function expireConversation() {
-        $this->setState('EXPIRED');
-        $this->save();
-    }
-
-
-
-
-
     /** GETTERS */
     public function getEventId() {
         return $this->getValue('event_id');
+    }
+
+    public function getInstance() {
+        return $this->getValue('instance') ?? 1;
     }
 
     public function getInstrument() {
@@ -88,6 +100,10 @@ class ConversationState extends SimpleEmLogObject
 
     public function getRecordId() {
         return $this->getValue('record_id');
+    }
+
+    public function getSurveyId() {
+        return $this->getValue('survey_id');
     }
 
     public function getExpiryTs() {
@@ -127,6 +143,11 @@ class ConversationState extends SimpleEmLogObject
     }
 
 
+    /**
+     * Update the last response ts so that we don't expire a conversation in the middle of answering the questions
+     * @param $ts
+     * @return null
+     */
     public function setLastResponseTs($ts = null) {
         if (empty($ts)) $ts = time();
         return $this->setValue('last_response_ts', $ts);

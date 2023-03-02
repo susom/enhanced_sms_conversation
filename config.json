@@ -126,6 +126,12 @@
             "type": "text"
         },
         {
+            "key": "default-expiry-text",
+            "name": "<b>Default Expiry Text</b><br>If an active conversation expires, this message will be sent to the user.",
+            "required": true,
+            "type": "text"
+        },
+        {
             "key": "thur-expiry-text",
             "name": "<b>Thursday Expiry Text</b><br>After the allowed expiry time for the Thursday survey has elapsed, this message will be sent to the user.",
             "required": true,

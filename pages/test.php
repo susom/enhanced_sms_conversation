@@ -111,10 +111,56 @@ $event_id = 167;
 //var_dump($FM);
 
 $record = "34";
-$start_field = '';
+$next_field = '';
 
-$FM = new FormManager($module, 'survey_1', $start_field, $record, $event_id,81);
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
 
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+$next_field = $FM->getNextField();
+$FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
+var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
+    $FM->getQuestionLabel(),$FM->getInstructions(),
+    "Messages",$FM->getMessages(), $FM->getChoices());
+
+exit();
 
 $q = $FM->setStartingField($start_field,$record);
 echo "1-----\n[ $start_field ]\n";

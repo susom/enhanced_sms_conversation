@@ -14,7 +14,6 @@ use \Project;
  * This module does its best to set:
  * source, source_id, project_id, record_id, event_id, instance, and event_name
  *
- *
         // Immediate ASI works:
         [source] => ASI
         [source_id] => 177
@@ -37,8 +36,6 @@ use \Project;
         [instrument] => record_information
         [survey_id] =>
  *
- *
- *
  */
 class MessageContext {
     private $module;
@@ -57,6 +54,7 @@ class MessageContext {
         'source','source_id','project_id','record_id','event_id',
         'instance','event_name','instrument','survey_id'
     ];
+
 
     /**
      * You can pass in an array of known context to override as needed

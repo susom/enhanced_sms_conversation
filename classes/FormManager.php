@@ -2,33 +2,37 @@
 
 namespace Stanford\EnhancedSMSConversation;
 
-use PhpParser\Node\Scalar\String_;
 use REDCap;
 use Piping;
 
+/**
+ * The FormManager class exists to help us parse out a data dictionary for conversion to SMS
+ * It only allows certain fields and helps prepare the labels and options for piping and presentation
+ * over SMS
+ */
 class FormManager {
 
     /** @var EnhancedSMSConversation $module */
     private $module;
+
     private $form;
-    private $start_field;
     private $record_id;
     private $event_id;
     private $instance;
     private $project_id;
-    private $form_script;    // Parsed version of data dictionary
 
+    private $dict;                          // Data Dictionary Object
 
+    // THESE ARE THE FIELDS THAT REPRESENT THE CURRENT STATE
+    private $start_field;
+    private $current_field;                 // This is the current field that should be saved to the conversation
+    private $next_field;                    // This is the next field in the dictionary
+    private $descriptive_messages = [];     // These are text messages to be sent
+    private $current_question;              // This is the active question label
+    private $instructions;                  // This is how to complete the question (is choices for enum)
+    private $choices;                       // This is an array of the valid choices
 
-
-    private $current_field;  // This is the current field that should be saved to the conversation state after delivery of messages
-
-    private $descriptive_messages = [];
-    private $current_question;
-    private $instructions;  // This is how to complete the question (is choices for enum)
-    private $choices;       // This is an array of the valid choices
-
-    private $invalid_response_message;  // This is the message we give to people with an invalid response
+    private $invalid_response_message;  // TODO: Rename-- do we need this?  This is the message we give to people with an invalid response
 
     const VALID_ENUMERATED_FIELD_TYPES = [
         "yesno", "truefalse", "radio", "dropdown"
@@ -62,14 +66,11 @@ class FormManager {
     /**
      * Create a parsed version of the form script that can be used for SMS replies
      *
-     * Returns an array of fields of that form.
-     *
-     * @return array
      * @throws \Exception
      */
     private function buildContext() {
 
-        $dict = REDCap::getDataDictionary($this->project_id, "array", false, null, [$this->form]);
+        $this->dict = REDCap::getDataDictionary($this->project_id, "array", false, null, [$this->form]);
 
         /*
          * "field_name":"desc_1",
@@ -92,17 +93,31 @@ class FormManager {
          * "field_annotation":""
          */
 
+        // Build an array of valid field_types
         $valid_field_types = array_merge(
             self::VALID_ENUMERATED_FIELD_TYPES,
             self::VALID_TEXT_TYPES,
             ["descriptive"]
         );
 
-        foreach($dict as $field_name => $dd) {
+        // Loop through each field on the form until we find our context
+        $found=false;
+        foreach($this->dict as $field_name => $dd) {
             // Start on the first field of the form if not already set
             if (empty($this->start_field)) $this->start_field = $field_name;
 
-            //
+            // Mark true if we find the 'starting field' for our scan
+            if (!$found && $this->start_field == $field_name) $found=true;
+
+            // If we haven't found the starting place, then skip to the next field
+            if (!$found) continue;
+
+            // We know we are one field past the current field when the following is true
+            // So record the next field and exit
+            if ($this->current_field && $this->current_field !== $field_name) {
+                $this->next_field = $field_name;
+                break;
+            }
 
             // Parse out action tags
             $action_tags = $this->parseActionTags($dd["field_annotation"]);
@@ -117,8 +132,10 @@ class FormManager {
             }
 
             // Skip invalid field_types regardless
-            if (!in_array($dd["field_type"], $valid_field_types)) continue;
-
+            if (!in_array($dd["field_type"], $valid_field_types)) {
+                $this->module->emDebug("Skipping unsupported field type for $field_name of " . $dd["field_type"]);
+                continue;
+            }
 
             // Check to see if we skip question due to branching logic
             if ($this->skipDueToBranching($dd['branching_logic'])) {
@@ -134,141 +151,82 @@ class FormManager {
 
             if ($dd["field_type"] == "descriptive") {
                 $this->descriptive_messages[] = $this->pipe($dd['field_label']);
-            } elseif (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
-                $this->current_question = $this->pipe($dd['field_label']);
-                $this->choices = $this->parseChoices($dd);
-                $this->instructions = "TODO: put choice options in here ";
-                $this->current_field = $field_name;
-                break;
-            } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
-                $this->current_question = $this->pipe($dd['field_label']);
-                if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-                    $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
-                } elseif (!empty($text_validation_max)) {
-                    $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
-                } elseif (!empty($text_validation_min)) {
-                    $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
-                }
-                $this->current_field = $field_name;
-                break;
             } else {
-                $this->module->emError("Unable to parse this dd type:", $dd);
+                // This is the next question field
+                $this->current_field = $field_name;
+                $this->current_question = $this->pipe($dd['field_label']);
+
+                if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
+                    list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
+                } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
+                    $this->choices = [];
+                    if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+                        $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
+                    } elseif (!empty($text_validation_max)) {
+                        $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
+                    } elseif (!empty($text_validation_min)) {
+                        $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
+                    }
+                    // TODO: Support things like date fields...
+                } else {
+                    throw new \Exception("Unable to parse this dd type:", $dd);
+                }
             }
         }
-            // // // Set the current question to the first question if it is currently empty
-            // // if (empty($start_field)) $start_field = $this->getNextField();
-            // // $this->start_field = $start_field;
-            // //
-            // // // Loop through the script until we find the start_field
-            // // $found = false;
-            // // foreach ($this->form_script as $field_name => $meta) {
-            // //     // Once we reach the start question, we stop skipping and start processing
-            // //     if (!$found && $field_name !== $start_field) continue;
-            // //
-            // //     // We've identified our starting position in the form_script
-            // //     $found=true;
-            // //     $this->module->emDebug("Started at $start_field - now at $field_name");
-            // //
-            // //
-            // //     // Process Label for current question
-            // //     $label_raw = $meta['field_label'];
-            // //     $label = $this->pipe($label_raw,$record_id,$instance);
-            // //     if ($label !== $label_raw) {
-            // //         $this->module->emDebug("Piping changed label:", $label_raw, $label);
-            // //     }
-            // //
-            // //     // If it is descriptive, we continue:
-            // //     if ($meta['field_type'] == "descriptive") {
-            // //         // Load the descriptive label into the pre_labels array
-            // //         if (!empty($label)) $pre_labels[] = $label;
-            // //         // $this->module->emDebug("$field_name is descriptive, so we will go on to the next field");
-            // //     } else {
-            // //         // We must have a question where we want to ask something - let's mark this as the current_field
-            // //         $current_field = $field_name;
-            // //
-            // //         // Let's get the label
-            // //         $label_raw = empty($label) ? '' : $label;
-            // //         $question = $this->pipe($label_raw, $record_id, $instance);
-            // //
-            // //         if (!empty($meta['preset_choices'])) {
-            // //             $opts = [];
-            // //             foreach ($meta['preset_choices'] as $k => $v) {
-            // //                 // Check value label for piping:
-            // //                 $this_v = $this->pipe($v,$record_id,$instance);
-            // //                 $opts[] = "[$k] $this_v";
-            // //             }
-            // //             $choices = implode(", ", $opts);
-            // //         }
-            // //         break;  // Stop at first question that needs an answer
-            // //     }
-            // // }
-            // //
-            // // // Save all the current context
-            // // $this->start_field      = $start_field;
-            // // $this->current_field    = $current_field;
-            // // $this->current_choices  = $choices;
-            // // $this->current_question = $question;
-            // // $this->pre_labels       = $pre_labels;
-            // //
-            //
-            //
-            //
-            //
-            //
-            //
-            //
-            // $field_type             = $dd["field_type"];
-            // $annotation_arr         = $this->parseActionTags($dd["field_annotation"]);
-            // $field_label            = $dd["field_label"];
-            // $choices                = $dd["select_choices_or_calculations"];
-            // $branching_logic        = $dd["branching_logic"];
-            // $text_validation_min    = $dd["text_validation_min"];
-            // $text_validation_max    = $dd["text_validation_max"];
-            //
-            //
-            // // Build customized metadata object for the given field.  This does not yet include BRANCHING or PIPING
-            // $meta = [
-            //     "field_name"        => $field_name,
-            //     "field_type"        => $field_type,
-            //     "field_label"       => $field_label,
-            //     "branching_logic"   => $branching_logic,
-            //     "instructions"      => '',
-            //     "action_tags"       => $annotation_arr
-            // ];
-            //
-            // // PROCESS PRESET CHOICES
-            // // Create an array of all choices for enumerated types
-            //
-            //     // Blow up the choices string into an array
-            //     $preset_choices = array();
-            //     $choice_pairs = explode("|",$choices);
-            //     foreach($choice_pairs as $pair){
-            //         list($k, $v) = array_map('trim', explode(",",$pair,2));
-            //         $preset_choices[$k] = $v;
-            //     }
-            //     $meta["preset_choices"] = $preset_choices;
-            // }
-            //
-            //
-            // }
-            //
-            // $form_script[$field_name] = $meta;
-        // }
+    }
 
-        // $this->module->emDebug("Form script: ", $form_script);
-        // return $form_script;
+
+    /** GETTERS */
+    public function getCurrentField() {
+        return $this->current_field;
+    }
+
+    public function getNextField() {
+        return $this->next_field;
+    }
+
+    public function getStartField() {
+        return $this->start_field;
+    }
+
+    public function getMessages() {
+        return $this->descriptive_messages;
+    }
+
+    public function getQuestionLabel() {
+        return $this->current_question;
+    }
+
+    public function getChoices() {
+        return $this->choices;
+    }
+
+    public function getInstructions() {
+        return $this->instructions ?? '';
+    }
+
+
+    /**
+     * Combine previous section headers, descriptive fields, and the actual question into an array of messages
+     * @return array{string}
+     */
+    public function getArrayOfMessagesAndQuestion() {
+        return array_merge($this->getMessages(), [ $this->getQuestionLabel()]);
     }
 
 
 
-    public function getFieldInstruction($current_step) {
-        $instructions = $this->form_script[$current_step]["instructions"];
-        return $instructions;
-    }
+    /** HELPERS **/
 
-    public function getFieldLabel($current_step) {
-        $label = $this->form_script[$current_step]["field_label"];
-        return $label;
+    /**
+     * TODO:
+     * @return mixed
+     */
+    public function getInvalidResponseMessage() {
+        // // Set the invalid message warning as needed
+        // $default_validation_warning = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
+        // $override = $this->form_script[$this->current_field]['action_tags'][$this->module::ACTION_TAG_VALIDATION_MESSAGE]['params_json'];
+        // return is_null($override) ? $default_validation_warning : json_decode($override);
     }
 
 
@@ -286,281 +244,11 @@ class FormManager {
 
 
     /**
-     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
-     * this method will return the next series of metadata ready to be sent as SMS
-     * Any descriptive fields preceding it and then the next valid question will be returned.
-     *
-     * @param $current_question String
-     * @param $record_id
-     * @param $event_id
-     * @return void
+     * Parse out the enumerated choices and instructions for them
+     * @param $dd
+     * @return array
      */
-    public function getNextSMS($current_question, $record_id) {
-        //if $current_question is blank, send the first sms applicable for this record in this event_id
-
-        $next_step_metadata = $this->getNextStepInScript($current_question);
-        $next_step = $next_step_metadata['field_name'];
-
-        if ($next_step == null) {
-            //no more steps
-            return null;
-        }
-
-        return $this->getCurrentFormStep($next_step, $record_id);
-    }
-
-    /**
-     * Given list of sms to send (includes descriptive field,
-     * return the first (and shuld be only) active field to be saved
-     * as current conversation field.
-     *
-     * @param $sms_list
-     * @return String
-     */
-    public function getActiveQuestion($sms_list, $label = false) {
-        //return the first non-descriptive field
-        foreach ($sms_list as $key => $value) {
-            if ($value['field_type'] !== 'descriptive') {
-                $result = $value['field_name'];
-                if ($label) {
-                    $result = $value['field_label'];
-                }
-                return $result;
-            }
-        }
-    }
-
-    /**
-     * Gets the next sendable fields for this record in this event for the form loaded for this form manager
-     * We need this for the reminder scenario where the current question needs to be resent.
-     * For the reminder scenario, we need to only send the last field (do not send the descriptive fields)
-     *
-     * Fields can be excluded from this list by adding ACTION TAG : @ESC_IGNORE
-     *
-     * Given the current_question (variable name in data dictionary) and the record_id and event_id,
-     * this method will return the current series of metadata fields to be sent as SMS
-     * Any descriptive fields preceding it and then the next valid question will be returned.
-     *
-     * @param $current_question String
-     * @param $record_id
-     * @return mixed
-     */
-    public function getCurrentFormStep($current_question, $record_id) {
-        $this->module->emDebug("Current question: ". $current_question);
-        $container = array();
-
-
-        // GATHER UP STEPs UNTIL REACHING An input step (evaluate branching if need be)
-        $container = $this->recurseCurrentSteps($current_question, $record_id, $container);
-
-        return $container;
-    }
-
-    /**
-     * Recursive method that traverses the current form loaded in this FormManager.
-     *
-     * At each recursive level, it adds to the array if the branching logic is applicable to this record in this
-     * event for this form. Any number of descriptive fields will be added until a field expecting a response is
-     * hit.
-     *
-     * @param $current_step
-     * @param $record_id
-     * @param $container
-     * @return mixed
-     */
-    public function recurseCurrentSteps($current_step, $record_id, $container) {
-        $this_step          = $this->form_script[$current_step]["field_name"];
-        $field_type         = $this->form_script[$current_step]["field_type"];
-        $branching_logic    = $this->form_script[$current_step]["branching_logic"];
-
-        // IS CURRENT STEP VALID
-        if ((!empty($branching_logic) ) && ($record_id)  && ($this->event_id) ) {
-            $valid = \REDCap::evaluateLogic($branching_logic, $this->project_id, $record_id, $this->event_id);
-            if ($valid) {
-                array_push($container, $this->form_script[$current_step]);
-            }
-        } else {
-            array_push($container, $this->form_script[$current_step]);
-        }
-
-
-        //terminating conditions: no more steps or the last time in the sms_list is not descriptive
-        $next_step = $this->getNextStepInScript($current_step);
-        $last_field_type_in_container = end($container)['field_type'];
-        if (empty($next_step) || (($last_field_type_in_container!= null) && ($last_field_type_in_container !== "descriptive"))) {
-            //this is the last
-            return $container;
-        } else {
-            $container = $this->recurseCurrentSteps($next_step['field_name'], $record_id, $container);
-        }
-
-        return $container;
-
-     }
-
-    /**
-     * Helper method to retrieve the next field in the given form.
-     *
-     * Returns array of metadata if found
-     * Returns false if there is no more field to be returned.
-     *
-     * @param $key
-     * @return false|mixed
-     */
-    private function getNextStepInScript($key) {
-        $script = $this->form_script;
-
-        if ($key == '') {
-            return reset($script);
-        }
-
-        $currentKey = key($script);
-
-        while ($currentKey !== null && $currentKey != $key) {
-            next($script);
-            $currentKey = key($script);
-        }
-        return next($script);
-
-    }
-
-
-    /****************************************/
-    /*  ANDY's VERSION                      */
-    /****************************************/
-
-
-
-
-    /**
-     * Set Starting Location
-     *
-     * This method figures out what messages need to be sent depending on where you start.
-     *
-     * If current_field is empty, then we start at the beginning of the instrument.  The output
-     * will contain the next field.
-     *
-     *  - We stop at the first question equal to
-     * call getNextField($current_field, $record);
-     * - loop to find starting place
-     * - has branching logic, evaluate - if false, skip
-     * - is descriptive, just take label and then goto next
-     * - is valid question, then create question
-     *     output of this function is the Next SMS Message AND the new Current Question.
-     *   if new question is empty, then I presume we are done and can close the conversation.
-     *
-     * @param string $start_field
-     * @param string $record_id
-     * @param int $instance
-     * @return array{pre_question: array, question: string, options: string, current_field: string}
-     *
-     */
-    public function setStartingField($start_field, $record_id, $instance=1) {
-        $pre_labels    = []; // Array of posts from start_field to current question (descriptive fields)
-        $question      = ''; // Actual text for the current question
-        $choices       = ''; // Options for the question (e.g. Reply Y for yes)
-        $current_field = ''; // This is the question that we are awaiting a response on
-        $current_instructions = '';
-
-        // Set the current question to the first question if it is currently empty
-        if (empty($start_field)) $start_field = $this->getNextField();
-        $this->start_field = $start_field;
-
-        // Loop through the script until we find the start_field
-        $found = false;
-        foreach ($this->form_script as $field_name => $meta) {
-            // Once we reach the start question, we stop skipping and start processing
-            if (!$found && $field_name !== $start_field) continue;
-
-            // We've identified our starting position in the form_script
-            $found=true;
-            $this->module->emDebug("Started at $start_field - now at $field_name");
-
-            // Check to see if we skip question due to branching logic
-            $branching_logic = $meta['branching_logic'];
-            if (!empty($branching_logic) && $this->skipDueToBranching($meta['branching_logic'], $record_id)) {
-                $this->module->emDebug("Skipping $field_name for record $record_id due to branching logic");
-                continue;
-            }
-
-            // Process Label for current question
-            $label_raw = $meta['field_label'];
-            $label = $this->pipe($label_raw,$record_id,$instance);
-            if ($label !== $label_raw) {
-                $this->module->emDebug("Piping changed label:", $label_raw, $label);
-            }
-
-            // If it is descriptive, we continue:
-            if ($meta['field_type'] == "descriptive") {
-                // Load the descriptive label into the pre_labels array
-                if (!empty($label)) $pre_labels[] = $label;
-                // $this->module->emDebug("$field_name is descriptive, so we will go on to the next field");
-            } else {
-                // We must have a question where we want to ask something - let's mark this as the current_field
-                $current_field = $field_name;
-
-                // Let's get the label
-                $label_raw = empty($label) ? '' : $label;
-                $question = $this->pipe($label_raw, $record_id, $instance);
-
-                if (!empty($meta['preset_choices'])) {
-                    $opts = [];
-                    foreach ($meta['preset_choices'] as $k => $v) {
-                        // Check value label for piping:
-                        $this_v = $this->pipe($v,$record_id,$instance);
-                        $opts[] = "[$k] $this_v";
-                    }
-                    $choices = implode(", ", $opts);
-                }
-                break;  // Stop at first question that needs an answer
-            }
-        }
-
-        // Save all the current context
-        $this->start_field      = $start_field;
-        $this->current_field    = $current_field;
-        $this->current_choices  = $choices;
-        $this->current_question = $question;
-        $this->pre_labels       = $pre_labels;
-
-        // return [
-        //     "before"        => $pre_labels,
-        //     "question"      => $question,
-        //     "options"       => $choices,
-        //     "current_field" => $current_field
-        // ];
-    }
-
-
-    public function getCurrentField() {
-        return $this->current_field;
-    }
-
-    public function getPreLabels() {
-        return $this->pre_labels;
-    }
-
-    public function getQuestionLabel() {
-        return $this->current_question;
-    }
-
-    public function getChoices() {
-        return $this->current_choices;
-    }
-
-    public function getInstructions() {
-        return $this->form_script[$this->current_field]['instructions'] ?? '';
-    }
-
-    public function getInvalidResponseMessage() {
-        // Set the invalid message warning as needed
-        $default_validation_warning = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
-        $override = $this->form_script[$this->current_field]['action_tags'][$this->module::ACTION_TAG_VALIDATION_MESSAGE]['params_json'];
-        return is_null($override) ? $default_validation_warning : json_decode($override);
-    }
-
-
-    public function parseChoices($dd)
+    private function parseChoicesAndInstructions($dd)
     {
         $choices = $dd['select_choices_or_calculations'];
         if ($dd['field_type'] == "yesno") {
@@ -570,43 +258,19 @@ class FormManager {
         }
 
         // Blow up the choices string into an array
-        $preset_choices = array();
+        $arr_choices = [];
+        $arr_instructions = [];
         $choice_pairs = explode("|", $choices);
         foreach ($choice_pairs as $pair) {
             list($k, $v) = array_map('trim', explode(",", $pair, 2));
             $choice_label = $this->pipe($v);
-            $preset_choices[$k] = $choice_label;
+            $arr_choices[$k] = $choice_label;
+            $arr_instructions[] = "[$k] $choice_label";
         }
-        return $preset_choices;
+        $instructions = implode(", ", $arr_instructions);
+        return [$arr_choices, $instructions];
     }
 
-
-    /**
-     * Get Next Field
-     *  - returns the field_name (key) of script for next question
-     *      - starts at q1 if current_question is empty
-     *      - return null if there are no more questions or if current_question isn't in script
-     * @param string $current_field
-     * @return string|null $next_question
-     */
-    public function getNextField($current_field = '') {
-        $keys = array_keys($this->form_script);
-        // If current_question is empty, then assume the first question is next, otherwise
-        // look to find the next question
-        if (empty($current_field)) {
-            $next_position = 0;
-        } else {
-            $position = array_search($current_field, $keys);
-            if ($position === false) {
-                // current_field not found in keys
-                $this->module->emError("Was unable to find $current_field in script - unable to continue to next");
-                $next_position = -1; // non-valid position
-            } else {
-                $next_position = $position + 1;
-            }
-        }
-        return $keys[$next_position] ?? null;
-    }
 
 
     /**
@@ -625,79 +289,59 @@ class FormManager {
 
 
     /**
-     * Try to take in a response to a field_name and see if it is valid - return the value to save, or false if invalid.
-     * @param $field_name
+     * Given our current field, see if the response is valid
      * @param $response
      * @return false|string
      */
-    public function validateResponse($field_name, $response) {
+    public function validateResponse($response) {
 
-        // Make sure we have a valid field_name
-        $meta = $this->form_script[$field_name] ?? null;
-        if (is_null($meta)) {
-            $this->module->emError("Unable to find $field_name in form script");
-            return false;
-        }
-
-        // Check for presets
-        if ($choices = $meta['preset_choices']) {
+        if (!empty($this->choices)) {
+            // This is an enumerated field_type
 
             // In testing with cases I found issues, so I think we should lowercase everything
             $input = strtolower(trim($response));
-            // Lowercase everything (keys and values)
-            $choices = array_map('strtolower', array_change_key_case($choices, CASE_LOWER));
 
             // Also think we should remove any punctuation marks or other non-alphanum chars, etc..
             $input = preg_replace("/[^a-z0-9]/", '', $input);
 
-            // $this->module->emDebug("INPUT IS " . $input);
-            // $this->module->emDebug("FIELDTYPE  IS " . $meta['field_type']);
-            // $foo_keys = array_keys($choices);
-            // $this->module->emDebug("ARRAY KEYS  IS ",  $foo_keys);
-            // $valid = in_array($input, $foo_keys, true);
-            // $this->module->emDebug("IS IT VAILD ",  $valid);
+            // Lowercase everything (keys and values)
+            $choices = array_map('strtolower', array_change_key_case($this->choices, CASE_LOWER));
 
-            // Try to find a key-match first
-            // Input is always a string, but numeric-like keys are made into ints when part of an array
-            // It appears isset coerces a numeric string to an int for comparison: so isset($a["1"]) is same as $a[1]
-            //var_dump($input, $choices, array_keys($choices), isset($choices["0"]));
             if (isset($choices[$input])) {
                 // Found a direct match to an array key
+                // Input is always a string, but numeric-like keys are made into ints when part of an array
+                // It appears isset coerces a numeric string to an int for comparison: so isset($a["1"]) is same as $a[1]
                 $this->module->emDebug("Matched $input to choice key for label $choices[$input]");
                 return $input;
-            }
-
-            // Try to find a value match
-            if (false !== $key = array_search($input, $choices)) {
+            } else if (false !== $key = array_search($input, $choices)) {
+                // Try to find a value match in the choices array (e.g. yes for 1, yes)
                 // Found a match to a label of a choice
-                $this->module->emDebug("Matched $input to choice $key of $field_name");
+                $this->module->emDebug("Matched $input to choice $key of $this->current_field");
                 return strval($key);
-            }
-
-            // Use value aliases
-            // If we have a radio field type with Yes, No, and Maybe - it isn't strict boolean field, however, this
-            // match should match a response of 'y' to the 'Yes' response as both are in the same alias group
-            foreach (self::ALIASES as $type => $group) {
-                if (in_array($input,$group)) {
-                    // response is part of an alias group
-                    foreach ($choices as $k => $v) {
-                        if (in_array($v, $group)) {
-                            $this->module->emDebug("Response $input is in same group $type as choice value $v - setting value as $k");
-                            return strval($k);
+            } else {
+                // Try to use value aliases, e.g. a radio field type with 1,Yes | 0,No, | 2,Maybe - it isn't a strict
+                // boolean field, however, this match should match a response of 'y' to the 'Yes' label because
+                // they are in the same yes-like alias group
+                foreach (self::ALIASES as $type => $group) {
+                    if (in_array($input,$group)) {
+                        // response is part of an alias group
+                        foreach ($choices as $k => $v) {
+                            if (in_array($v, $group)) {
+                                $this->module->emDebug("Response $input is in same group $type as choice value $v - setting value as $k");
+                                return strval($k);
+                            }
                         }
                     }
                 }
             }
+
             $this->module->emDebug("We were unable to match $input to any of the choices:", $choices);
             return false;
-
-        } elseif ($meta['field_type'] == "text") {
+        } else {
             // TODO - validate TEXT!
             $input=trim($response);
             return $input;
         }
-
-        return false;
     }
 
 
@@ -707,7 +351,7 @@ class FormManager {
      *
      * @param $string           The string to be parsed for actiontags (in the format of <code>@FOO=BAR or @FOO={"param":"bar"} or @FOO="String" </code>
      * @param null $tag_only    If you wish to select a single tag
-     * @return array       returns the match array with the key equal to the tag and an array containing keys of 'params, params_json and params_text'
+     * @return array            returns the match array with the key equal to the tag and an array containing keys of 'params, params_json and params_text'
      */
     private function parseActionTags($string, $tag_only = null)
     {
@@ -756,6 +400,5 @@ class FormManager {
 
         return $result;
     }
-
 
 }

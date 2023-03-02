@@ -26,7 +26,28 @@ class TwilioManager {
         $this->token = $module->getProjectSetting('twilio-token',$this->project_id);
         $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$this->project_id));
 
-        if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new Exception ("Missing Twilio setup - see external module config");
+        if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new ConfigSetupException("Missing Twilio setup - see external module config");
+    }
+
+
+    /**
+     * Helper to send multiple messages at once
+     * @param string $to_number
+     * @param array $messages
+     * @return void
+     * @throws Exception
+     */
+    public function sendBulkTwilioMessages($to_number, $messages) {
+        // Make sure messages is an array
+        if (!is_array($messages)) $messages = [ $messages ];
+        $errors = [];
+        foreach ($messages as $message) {
+            $result = $this->sendTwilioMessage($to_number, $message);
+            if (!$result) $errors[] = $message;
+        }
+        if (!empty($errors)) {
+            $this->module->emDebug("Bulk Twilio message send failed", $errors);
+        }
     }
 
 
