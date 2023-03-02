@@ -135,7 +135,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             //7. Set the state table
             // Create a new Conversation State
             $CS = new ConversationState($this);
-            $CS->setValues([
+            $params = [
                 "project_id"    => $project_id,
                 "record_id"     => $record_id,
                 "instrument"    => $instrument,
@@ -143,11 +143,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 "instance"      => $mc_context['instance'] ?? 1,
                 "cell_number"   => $cell_number,
                 "current_field" => $FM->getCurrentField()
-            ]);
+            ];
+            $CS->setValues($params);
             $CS->setState("ACTIVE");
             $CS->setExpiryTs();
             $CS->setReminderTs();
+            $this->emDebug("About to save CS", $params);
             $CS->save();
+            $this->emDebug("SAVE COMPLETE (About to save CS");
 
             // Cancel sending the REDCap Email
             return false;

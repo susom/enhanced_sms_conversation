@@ -253,6 +253,7 @@ class SimpleEmLogObject
         } else {
             // Create New Log Entry (merging columns and parameters)
             $parameters = array_merge($this->dirty_columns, $this->object_parameters);
+            $this->module->emDebug("About to save: " , $parameters);
             $this->log_id = $this->module->log($this->type, $parameters);
             $this->module->emDebug("Created new log entry as $this->log_id", $this->object_parameters);
         }
