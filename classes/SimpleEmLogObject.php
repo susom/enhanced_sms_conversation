@@ -163,7 +163,7 @@ class SimpleEmLogObject
     public function getValue($k) {
         if(property_exists($this,$k)) {
             if($k=="project_id") $this->module->emDebug("$k PROPERTY EXISTS");
-            $value = $this[$k];
+            $value = $this->$k;
         } else if (isset($this->object_parameters[$k])) {
             if($k=="project_id") $this->module->emDebug("$k PARAMETER EXISTS");
             $value = $this->object_parameters[$k];
