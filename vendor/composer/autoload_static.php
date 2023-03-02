@@ -9,14 +9,14 @@ class ComposerStaticInit0c75e464486d2bc95c25cb19914e5522
     public static $prefixLengthsPsr4 = array (
         'T' => 
         array (
-            'Twilio\\Sdk\\' => 11,
+            'Twilio\\' => 7,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'Twilio\\Sdk\\' => 
+        'Twilio\\' => 
         array (
-            0 => __DIR__ . '/../..' . '/src',
+            0 => __DIR__ . '/..' . '/twilio/sdk/src/Twilio',
         ),
     );
 

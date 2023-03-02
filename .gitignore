@@ -10,6 +10,3 @@
 
 # Builder Script
 gitInit.sh
-
-# Composer
-/vendor

@@ -102,7 +102,8 @@ $config = $module->getConfig();
 
 $TM = new TwilioManager($module,$module->getProjectId());
 
-var_dump($TM);
+$TC = $TM->getTwilioClient();
+var_dump($TM, $TC);
 exit();
 
 

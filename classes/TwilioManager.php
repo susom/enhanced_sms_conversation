@@ -2,10 +2,12 @@
 namespace Stanford\EnhancedSMSConversation;
 
 use REDCap;
-// use \Twilio\Rest\Client;
+use Twilio\Rest\Client;
 use \Exception;
 
 // require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
+
+require_once "../vendor/autoload.php";
 
 /**
  * Helper module for sending messages
@@ -112,7 +114,7 @@ class TwilioManager {
      * @return Client TwilioClient
      * @throws \Twilio\Exceptions\ConfigurationException
      */
-    private function getTwilioClient() {
+    public function getTwilioClient() {
         if (empty($this->TwilioClient)) {
             $this->TwilioClient = new \Twilio\Rest\Client($this->sid, $this->token);
         }
