@@ -95,6 +95,11 @@ class SimpleEmLogObject
      * @return void
      */
     public function setValue($name, $val) {
+        if ($val == '' or is_null($val)) {
+            $this->module->emDebug("ERROR IN SET VALUE: Cannot set $name to empty or null");
+            return;
+        }
+
         if(property_exists($this,$name)) {
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
