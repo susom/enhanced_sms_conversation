@@ -163,7 +163,7 @@
         },
         {
             "key": "sms-opt-out-field",
-            "name": "<b>SMS Opt Out field</b><br>This must be a TEXT field.  If empty, the participant is assumed to be opted-in.  If it has a value, the participant has opted-out of SMS communication.  Future outbound messages will NOT be sent if opted-out.  A participant can opt-out by replying with 'STOP' or 'OPT-OUT'",
+            "name": "<b>SMS Opt Out field</b><br>This must be a checkbox field with an option of '1, Opted Out'.  If unchecked, the participant is assumed to be available.  If checked, the participant has opted out and messages will no longer be delivered.  A participant can opt-out by replying with 'STOP' or 'OPT-OUT' and can opt back into messaging by replying with 'START'",
             "required": true,
             "type": "field-list"
         },

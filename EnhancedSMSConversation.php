@@ -276,7 +276,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function getRecordOptOutStatus($record_id, $project_id) {
         $sms_opt_out = $this->getFieldDataFromConfigSettings($record_id, 'sms-opt-out-field', 'sms-opt-out-field-event-id', $project_id ) ?? '';
-        return $sms_opt_out !== '';
+        // return $sms_opt_out !== '';
+        return $sms_opt_out[1] == '1';  // Checkbox flavor
     }
 
 
@@ -330,8 +331,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             throw new ConfigSetupException("EM Configuration is not complete. Please check the EM setup around $this_field_config and $this_field_event_id_config");
         }
 
-        $value = $opt_out ? date("Y-m-d H:i:s") : '';
-        $data = [ $record_id => [ $this_field_event_id => [ $this_field => $value ]]];
+        // Text version
+        // $value = $opt_out ? date("Y-m-d H:i:s") : '';
+        // $data = [ $record_id => [ $this_field_event_id => [ $this_field => $value ]]];
+
+        // Checkbox Version
+        $value = $opt_out ? '1' : '0';
+        $data = [ $record_id => [ $this_field_event_id => [ $this_field[1] => $value ]]];
 
         $params = [
             'data'=>$data,
