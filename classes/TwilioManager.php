@@ -5,7 +5,8 @@ use REDCap;
 // use \Twilio\Rest\Client;
 use \Exception;
 
-// require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio.php";
+require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services/Twilio/Rest/Twilio.php";
+require_once APP_PATH_DOCROOT . "/Libraries/Twilio/Services"
 
 /**
  * Helper module for sending messages
@@ -19,7 +20,7 @@ class TwilioManager {
     private $twilio_number;
     private $project_id;
 
-    private Client $TwilioClient;
+    private $TwilioClient;
 
     public function __construct($module, $project_id) {
         $this->module = $module;
