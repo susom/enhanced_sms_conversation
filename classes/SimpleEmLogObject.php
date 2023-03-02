@@ -95,13 +95,12 @@ class SimpleEmLogObject
      * @return void
      */
     public function setValue($name, $val) {
-        $this->module->emDebug("=================SELO SETTING $name to $val");
         if(property_exists($this,$name)) {
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
                 $this->module->emDebug("THIS NAME: ". $this->$name);
                 if ($this->$name != $val) {
-                    $this->module->emDebug("x1Updated property $name from " . $this->$name . " to $val");
+                    $this->module->emDebug("Updated property $name from " . $this->$name . " to $val");
                     $this->$name = $val;
                     $this->dirty_columns[] = $name;
                 } else {
@@ -125,7 +124,7 @@ class SimpleEmLogObject
                     $this->module->emDebug("The parameter $name remains unchanged as $val");
                 } else {
                     // Update
-                    $this->module->emDebug("x2Updated property $name from " . $this->object_parameters[$name] . " to $val");
+                    $this->module->emDebug("Updated property $name from " . $this->object_parameters[$name] . " to $val");
                     $this->object_parameters[$name] = $val;
                     $this->dirty_parameters[] = $name;
                 }
@@ -384,7 +383,7 @@ class SimpleEmLogObject
         // Add type filter
         $sql = "select log_id where message = ?" . (empty($filter_clause) ? "" : " and " . $filter_clause);
         $params = array_merge([$object_type], $parameters);
-        $module->emDebug($sql, $params);
+        // $module->emDebug($sql, $params);
         $result = $framework->queryLogs($sql,$params);
         $ids = [];
         while ($row = $result->fetch_assoc()) {

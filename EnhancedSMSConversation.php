@@ -67,7 +67,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function redcap_email($to, $from, $subject, $message, $cc, $bcc, $fromName, $attachments) {
         // Exit if this is not an @ESMS email
-        if (strpos($subject, "@ESMS") === false) return true;
+        if (strpos($subject, self::SUBJECT_TAG_FOR_EMAIL) === false) return true;
 
         $this->emDebug("This email is an ESMS email");
 
@@ -136,6 +136,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             // Create a new Conversation State
             $CS = new ConversationState($this);
             $CS->setValues([
+                "project_id"    => $project_id,
                 "record_id"     => $record_id,
                 "instrument"    => $instrument,
                 "event_id"      => $event_id,
@@ -285,6 +286,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     /**
      * Determine if a record is withdrawn using the study-withdrawn-logic
+     * CAN BE CALLED OUT OF PROJECT CONTEXT
      * @param string $record_id
      * @param int $project_id
      * @return bool
@@ -718,6 +720,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws Exception
      */
     public function cronScanConversationState( $cronParameters ) {
+        if ($this->getSystemSetting('ignore-cron')) {
+            return;
+        }
+
         $originalPid = $_GET['pid'];
 
         // Attempt to use the single thread/multi-project cron strategy

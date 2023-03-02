@@ -201,6 +201,12 @@
 
     "system-settings": [
         {
+            "key": "ignore-cron",
+            "name": "<b>Ignore Cron (system-wide)</b><i>(optional)</i> If checked, we will not run the cron method",
+            "required": false,
+            "type": "checkbox"
+        },
+        {
             "key": "enable-system-debug-logging",
             "name": "<b>Enable Debug Logging (system-wide)</b><i>(optional)</i> Requires installation and configuration of emLogger",
             "required": false,
