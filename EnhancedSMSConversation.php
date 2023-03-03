@@ -350,7 +350,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // Checkbox Version
         $value = $opt_out ? 1 : 0;
-        $data = [ $record_id => [ $this_field_event_id => [ $this_field[1] => $value ]]];
+        $data = [ $record_id => [ $this_field_event_id => [ $this_field => [ 1 => $value ]]]];
 
         $params = [
             'data'=>$data,
@@ -369,7 +369,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             // $TM->sendTwilioMessage($number, $message);
             return '';
         } else {
-            $this->emError("Updated record $record_id opt-out status to $value WITH ERRORS:", $response, $params);
+            $this->emError("Updated record $record_id opt-out status to $value WITH ERRORS:", $response, $params, $this_field);
             return self::GENERIC_SMS_REPLY_ERROR;
         }
     }
@@ -517,8 +517,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $event_id = $CS->getEventId();
 
             if (empty($current_field)) {
-                // TODO: If we do not have a current field, then something has gone wrong and we should be ending the survey
+                // If we do not have a current field, then something has gone wrong and we should be ending the survey
+                $CS->setState('ERROR');
+                $CS->addNote('Missing required current_field state.  Check change logs for details');
                 $this->emError("Invalid Conversation State", $CS);
+                $CS->Save();
+
+                $TM->sendTwilioMessage($cell_number, "We're sorry - but something went wrong on our end (#" . $CS->getId() . ")");
                 throw new Exception("Something went wrong with " . $CS->getId() . " - Invalid conversation state");
             }
 
