@@ -139,7 +139,7 @@ class SimpleEmLogObject
             // Must be a parameter
             if (isset($this->object_parameters[$name])) {
                 // Existing parameter
-                if (is_null($val) or $val = '') {
+                if (is_null($val) || $val == '') {
                     // Null or empty parameter values are not supported - skip and mark for removal
                     $this->dirty_parameters[] = $name;
                     unset($this->object_parameters[$name]);
