@@ -143,10 +143,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 "current_field" => $current_field
             ];
             $CS->setValues($params);
+            $this->emDebug("Current Field", $current_field);
 
             if (empty($current_field)) {
                 // Survey is complete on creation - was only descriptive messages
-                $CS->setState('EXIPRED');
+                $this->emDebug("Setting Expired");
+                $CS->setState("EXPIRED");
             } else {
                 $CS->setState("ACTIVE");
                 $CS->setExpiryTs();
