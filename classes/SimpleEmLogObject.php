@@ -123,7 +123,7 @@ class SimpleEmLogObject
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
                 if ($this->$name != $val) {
-                    $this->module->emDebug("Updated property $name from " . $this->$name . " to $val");
+                    $this->module->emDebug("Setting property $name value " . ($this->$name ? "" : "from $this->$name ") . "to $val");
                     $this->$name = $val;
                     $this->dirty_columns[$name] = $val;
                 } else {
@@ -191,10 +191,10 @@ class SimpleEmLogObject
      */
     public function getValue($k) {
         if(property_exists($this,$k)) {
-            if($k=="project_id") $this->module->emDebug("$k PROPERTY EXISTS");
+            // if($k=="project_id") $this->module->emDebug("$k PROPERTY EXISTS");
             $value = $this->$k;
         } else if (isset($this->object_parameters[$k])) {
-            if($k=="project_id") $this->module->emDebug("$k PARAMETER EXISTS");
+            // if($k=="project_id") $this->module->emDebug("$k PARAMETER EXISTS");
             $value = $this->object_parameters[$k];
         } else {
             $this->module->emDebug("Unable to identify requested value by key $k");

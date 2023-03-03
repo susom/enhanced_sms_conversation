@@ -94,6 +94,7 @@ $config = $module->getConfig();
                 <h5 class="card-title">Twilio Inbound URL</h5>
 <!--                <h6 class="card-subtitle mb-2 text-muted">Card subtitle</h6>-->
                 <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,true) ?></code></p>
+                <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,false) ?></code></p>
 <!--                <a href="#" class="card-link">--><?php //= $module->getUrl("pages/inbound.php",true,true) ?><!--</a>-->
             </div>
         </div>

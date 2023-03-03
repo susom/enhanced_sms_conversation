@@ -74,7 +74,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // We determine the project/record/etc from a complex helper object
         $MC = new MessageContext($this);
         $mc_context = $MC->getContextAsArray();
-        $this->emDebug("EMAIL context: " . PAGE, $mc_context);
+        $this->emDebug("MC (" . PAGE . ") => " . json_encode($mc_context));
 
         $project_id = $mc_context['project_id'];
         $record_id  = $mc_context['record_id'];
@@ -148,9 +148,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $CS->setState("ACTIVE");
             $CS->setExpiryTs();
             $CS->setReminderTs();
-            $this->emDebug("About to save CS", $params);
+            $this->emDebug("About to create CS:" . json_encode($params));
             $CS->save();
-            $this->emDebug("SAVE COMPLETE (About to save CS");
+            $this->emDebug("SAVE COMPLETE- CS#" . $CS->getId());
 
             // Cancel sending the REDCap Email
             return false;

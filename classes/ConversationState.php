@@ -56,11 +56,10 @@ class ConversationState extends SimpleEmLogObject
         $project_id = $this->getValue('project_id');
         if (empty($ts)) {
             $default_expiry_min = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id);
-
             if (empty($default_expiry_min)) {
                 // Never expire this conversation
             } else {
-                $this->module->emDebug("default-conversation-expiry-minutes = $default_expiry_min");
+                // $this->module->emDebug("default-conversation-expiry-minutes = $default_expiry_min");
                 $ts = time() + ($default_expiry_min * 60);
             }
         }

@@ -81,11 +81,6 @@ class TwilioManager {
                 ]
             );
             $this->module->emDebug("SEND SMS RESPONSE: " . json_encode($sms));
-            if (!empty($sms->error_code) || !empty($sms->error_message)) {
-                $error_message = "Error #" . $sms->errorCode . " - " . $sms->errorMessage;
-                $this->module->emError($error_message);
-                throw new Exception ($error_message);
-            }
 
             // Save a copy of the outgoing message
             $MH = new MessageHistory($this->module);
@@ -93,12 +88,21 @@ class TwilioManager {
                 'from_number' => $this->twilio_number,
                 'to_number' => $to,
                 'body' => $message,
-                'error_code' => $sms->errorCode,
-                'error_message' => $sms->errorMessage,
-                'status' => $sms->status,
-                'sid' => $sms->sid
+                'response' => $sms
+                // 'error_code' => $sms->errorCode,
+                // 'error_message' => $sms->errorMessage,
+                // 'status' => $sms->status,
+                // 'sid' => $sms->sid
             ]);
             $MH->save();
+
+
+            if (!empty($sms->error_code) || !empty($sms->error_message)) {
+                $error_message = "Error #" . $sms->errorCode . " - " . $sms->errorMessage;
+                $this->module->emError($error_message);
+                throw new Exception ($error_message);
+            }
+
 
         } catch (\Exception $e) {
             REDCap::logEvent("Error sending Twilio message from number $to_number", $e->getMessage());
