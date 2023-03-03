@@ -63,7 +63,10 @@ class ConversationState extends SimpleEmLogObject
                 $ts = time() + ($default_expiry_min * 60);
             }
         }
-        if (is_numeric($ts)) $this->setValue('expiry_ts', $ts);
+        if (is_numeric($ts)) {
+            $this->module->emDebug("Setting Expiry Ts to $ts");
+            $this->setValue('expiry_ts', $ts);
+        }
     }
 
     /**

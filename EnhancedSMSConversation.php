@@ -156,7 +156,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $CS->setExpiryTs();
                 $CS->setReminderTs();
             }
-            // $this->emDebug("About to create CS:", $CS);
+            $this->emDebug("About to create CS:", $CS);
             $CS->save();
             $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
 
@@ -658,7 +658,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $output = $digits;
         }
         if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
-        // $this->emDebug("GOINGOUT : $output");
+        $this->emDebug("FORMATNUMBER $number => $output");
         return strval($output);
     }
 
