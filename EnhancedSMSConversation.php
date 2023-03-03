@@ -539,22 +539,26 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $saveSuccessful = empty($result['errors']);
                 if ($saveSuccessful) {
                     // Move onto the next question
-                    $this->emDebug("FM", $FM);
-
                     $next_field = $FM->getNextField();
                     if (empty($next_field)) {
                         // We have reached the end of the survey
                         $current_field = '';
                     } else {
                         // Let's load the next question
-                        $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
+                        $FM2 = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
+
+                        $msg = $FM2->getArrayOfMessagesAndQuestion();
+
+                        $this->emDebug("FM2", $FM2, $msg);
 
                         // And send next round of SMS messages if any
                         $TM->sendBulkTwilioMessages($FM->getArrayOfMessagesAndQuestion());
 
+                        $this->emDebug("sent");
+
                         // If the last field was just descriptive, we could be done here.  We can tell by seeing if
                         // the Form Manager has a current_field or not
-                        $current_field = $FM->getCurrentField();
+                        $current_field = $FM2->getCurrentField();
                         $this->emDebug("After save, started at " . $FM->getStartField() . " and now at $current_field");
                     }
 
@@ -567,8 +571,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Set the completion timestamp
                         // TODO: Do we need to set the form_status to '2'?  Probably...
                         // TODO: Move this setSurveyTimestamp to the CS object...
-                        $this->setSurveyTimestamp($CS->getSurveyId(),$CS->getEventId(),$CS->getRecordId(),
-                            $CS->getInstance(),"completion_time", date("Y-m-d H:i:s"));
+                        // $this->setSurveyTimestamp($CS->getSurveyId(),$CS->getEventId(),$CS->getRecordId(),
+                        //     $CS->getInstance(),"completion_time", date("Y-m-d H:i:s"));
                         $CS->setState('COMPLETE');
                         // TODO: Is there a 'thank you' or is that part of the descriptive in the survey...
                     }
