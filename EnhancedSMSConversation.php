@@ -22,10 +22,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     const NUMBER_PREFIX = "NUMBER:";
 
     const SUBJECT_TAG_FOR_EMAIL = "@ESMS";
-
     const ACTION_TAG_IGNORE_FIELD = "@ESMS-IGNORE";
-
-    // TODO: Reimplement this function
     const ACTION_TAG_INVALID_RESPONSE = "@ESMS-INVALID-RESPONSE";
 
     const GENERIC_SMS_REPLY_ERROR = "We're sorry - but something went wrong on our end.";
@@ -131,6 +128,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $TM = $this->getTwilioManager($project_id);
             // TODO: Do we want to do a first-time orientation or just build that into the survey?
             $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
+            $current_field = $FM->getCurrentField();
 
             //7. Set the state table
             // Create a new Conversation State
@@ -142,12 +140,18 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 "event_id"      => $event_id,
                 "instance"      => $mc_context['instance'] ?? 1,
                 "cell_number"   => $cell_number,
-                "current_field" => $FM->getCurrentField()
+                "current_field" => $current_field
             ];
             $CS->setValues($params);
-            $CS->setState("ACTIVE");
-            $CS->setExpiryTs();
-            $CS->setReminderTs();
+
+            if (empty($current_field)) {
+                // Survey is complete on creation - was only descriptive messages
+                $CS->setState('EXIPRED');
+            } else {
+                $CS->setState("ACTIVE");
+                $CS->setExpiryTs();
+                $CS->setReminderTs();
+            }
             $this->emDebug("About to create CS:" . json_encode($params));
             $CS->save();
             $this->emDebug("SAVE COMPLETE- CS#" . $CS->getId());

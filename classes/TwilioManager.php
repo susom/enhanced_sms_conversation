@@ -45,6 +45,10 @@ class TwilioManager {
     public function sendBulkTwilioMessages($to_number, $messages) {
         // Make sure messages is an array
         if (!is_array($messages)) $messages = [ $messages ];
+
+        // In case any messages are empty, lets filter:
+        $messages = array_filter($messages);
+
         $errors = [];
         foreach ($messages as $message) {
             $result = $this->sendTwilioMessage($to_number, $message);
