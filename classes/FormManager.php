@@ -31,6 +31,8 @@ class FormManager {
     private $current_question;              // This is the active question label
     private $instructions;                  // This is how to complete the question (is choices for enum)
     private $choices;                       // This is an array of the valid choices
+    private $action_tags = [];
+    private $invalid_response;
 
     private $invalid_response_message;  // TODO: Rename-- do we need this?  This is the message we give to people with an invalid response
 
@@ -121,13 +123,14 @@ class FormManager {
 
             // Parse out action tags
             $action_tags = $this->parseActionTags($dd["field_annotation"]);
+            $this->module->emDebug("Action Tags for $field_name", $action_tags);
 
             // Skip any fields that are hidden-survey
             if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
 
             // Skip fields that have @ESMS-IGNORE
             if (isset($action_tags[$this->module::ACTION_TAG_IGNORE_FIELD])) {
-                $this->module->emDebug("Skipping question $field_name as is tagged as ESC-IGNORE");
+                $this->module->emDebug("Skipping question $field_name as is tagged as ESMS-IGNORE");
                 continue;
             }
 
@@ -155,6 +158,7 @@ class FormManager {
                 // This is the next question field
                 $this->current_field = $field_name;
                 $this->current_question = $this->pipe($dd['field_label']);
+                $this->action_tags = $action_tags;
 
                 if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
                     list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
@@ -203,6 +207,10 @@ class FormManager {
 
     public function getInstructions() {
         return $this->instructions ?? '';
+    }
+
+    public function getInvalidResponse() {
+        return $this->invalid_response;
     }
 
 
@@ -334,6 +342,14 @@ class FormManager {
                     }
                 }
             }
+
+            // Set the invalid response
+            if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
+                $response = "custom"; //todo
+            } else {
+                $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
+            }
+            $this->invalid_response = $response;
 
             $this->module->emDebug("We were unable to match $input to any of the choices:", $choices);
             return false;
