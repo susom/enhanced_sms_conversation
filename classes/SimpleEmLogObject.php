@@ -119,6 +119,15 @@ class SimpleEmLogObject
      * @return void
      */
     public function setValue($name, $val) {
+        if(is_array($val)) {
+            $val = json_encode($val);
+            $this->module->emDebug("Input $name is array - casting to json for storage");
+        }
+        if(is_object($val)) {
+            $val = json_encode($val);
+            $this->module->emDebug("Input $name is object - casting to json for storage");
+        }
+
         if(property_exists($this,$name)) {
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
