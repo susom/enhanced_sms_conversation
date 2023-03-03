@@ -167,13 +167,14 @@ class FormManager {
                     list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
                 } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
                     $this->choices = [];
-                    if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-                        $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
-                    } elseif (!empty($text_validation_max)) {
-                        $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
-                    } elseif (!empty($text_validation_min)) {
-                        $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
-                    }
+                    // MOVING TO INVALID RESPONSE ERRORS
+                    // if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+                    //     $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
+                    // } elseif (!empty($text_validation_max)) {
+                    //     $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
+                    // } elseif (!empty($text_validation_min)) {
+                    //     $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
+                    // }
                     // TODO: Support things like date fields...
                 } else {
                     $this->module->emDebug($dd["field_type"] . " is something else", $dd);
@@ -214,7 +215,8 @@ class FormManager {
     }
 
     public function getInvalidResponse() {
-        return $this->invalid_response;
+        return $this->getInvalidResponseMessage();
+        // return $this->invalid_response;
     }
 
     public function getFieldDict() {
@@ -235,14 +237,30 @@ class FormManager {
     /** HELPERS **/
 
     /**
-     * TODO:
-     * @return mixed
+     * Build a invalid response message
+     * @return string $response
      */
-    public function getInvalidResponseMessage() {
-        // // Set the invalid message warning as needed
-        // $default_validation_warning = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
-        // $override = $this->form_script[$this->current_field]['action_tags'][$this->module::ACTION_TAG_VALIDATION_MESSAGE]['params_json'];
-        // return is_null($override) ? $default_validation_warning : json_decode($override);
+    private function getInvalidResponseMessage() {
+
+        // Set the invalid response
+        if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
+            // [@ESMS-INVALID-RESPONSE] => Array
+            // (
+            //     [params] => "We don't understand. Please text Yes or No"
+            //     [params_json] => "We don't understand. Please text Yes or No"
+            //     [params_text] =>
+            // )
+            $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
+        } elseif (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+            $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
+        } elseif (!empty($text_validation_max)) {
+            $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
+        } elseif (!empty($text_validation_min)) {
+            $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
+        } else {
+            $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
+        }
+        return $response;
     }
 
 
@@ -353,20 +371,6 @@ class FormManager {
                     }
                 }
             }
-
-            // Set the invalid response
-            if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
-                // [@ESMS-INVALID-RESPONSE] => Array
-                // (
-                //     [params] => "We don't understand. Please text Yes or No"
-                //     [params_json] => "We don't understand. Please text Yes or No"
-                //     [params_text] =>
-                // )
-                $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
-            } else {
-                $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
-            }
-            $this->invalid_response = $response;
 
             $this->module->emDebug("We were unable to match $input to any of the choices: " . json_encode($choices));
             return false;
