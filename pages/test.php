@@ -103,8 +103,8 @@ $config = $module->getConfig();
 
 // $CS = new ConversationState($module, "ConversationState");
 
-$q = ConversationState::getActiveConversationsNeedingAttention($module, $module->getProjectId(), time());
-var_dump($q);
+// $q = ConversationState::getActiveConversationsNeedingAttention($module, $module->getProjectId(), time());
+// var_dump($q);
 
 
 exit();
