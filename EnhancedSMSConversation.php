@@ -349,12 +349,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // $data = [ $record_id => [ $this_field_event_id => [ $this_field => $value ]]];
 
         // Checkbox Version
-        $value = $opt_out ? '1' : '0';
+        $value = $opt_out ? 1 : 0;
         $data = [ $record_id => [ $this_field_event_id => [ $this_field[1] => $value ]]];
 
         $params = [
             'data'=>$data,
-            'overwriteBehavior'=>'overwrite'
+            // 'overwriteBehavior'=>'overwrite'
         ];
 
         $response = REDCap::saveData($params);
@@ -367,9 +367,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             // $number = $this->getRecordPhoneNumber($record_id, $this->getProjectId());
             $sms = $opt_out ? $this->getOptOutMessage() : $this->getOptInMessage();
             // $TM->sendTwilioMessage($number, $message);
-            return $sms;
+            return '';
         } else {
-            $this->emError("Updated record $record_id opt-out status to $value WITH ERRORS:", $response);
+            $this->emError("Updated record $record_id opt-out status to $value WITH ERRORS:", $response, $params);
             return self::GENERIC_SMS_REPLY_ERROR;
         }
     }
