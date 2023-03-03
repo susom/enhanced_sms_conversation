@@ -547,14 +547,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Let's load the next question
                         $FM2 = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
 
-                        $msg = $FM2->getArrayOfMessagesAndQuestion();
-
-                        $this->emDebug("FM2", $FM2, $msg);
-
                         // And send next round of SMS messages if any
-                        $TM->sendBulkTwilioMessages($FM->getArrayOfMessagesAndQuestion());
-
-                        $this->emDebug("sent");
+                        $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getArrayOfMessagesAndQuestion());
 
                         // If the last field was just descriptive, we could be done here.  We can tell by seeing if
                         // the Form Manager has a current_field or not
