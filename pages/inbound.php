@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
                 'from_number' => $_POST['From'],
                 'to_number' => $_POST['To'],
                 'body' => $_POST['Body'],
-                'post' => $_POST
+                'post' => json_encode($_POST)
             ]);
             $MH->save();
         } catch (\Exception $e) {
