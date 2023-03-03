@@ -363,7 +363,7 @@ class FormManager {
             }
             $this->invalid_response = $response;
 
-            $this->module->emDebug("We were unable to match $input to any of the choices:", $choices);
+            $this->module->emDebug("We were unable to match $input to any of the choices: " . json_encode($choices));
             return false;
         } else {
             // TODO - validate TEXT!

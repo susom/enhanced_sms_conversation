@@ -584,9 +584,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 }
             } else {
                 // False here means this is an invalid response for an enumerated field
-                $this->emDebug("Response of $inbound_body was not valid for $current_field");
-                $invalid_reponse = $FM->getInvalidResponse();
-                $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $invalid_reponse]));
+                // $this->emDebug("Response of $inbound_body was not valid for $current_field");
+                $invalid_response = $FM->getInvalidResponse();
+                $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $invalid_response]));
                 // $nonsense_text_reply = $nonsense_text_warning . " " . $FM->getFieldInstruction($current_field);
                 $TM->sendTwilioMessage($cell_number, $outbound_sms);
             }
@@ -622,7 +622,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function formatNumber($number, $type = "E164") {
         // REDCap stores numbers like '(650) 123-4567' -- convert to +16501234567
         $digits = preg_replace('/[^\d]/', '', $number);
-        $this->emDebug("INCOMING : $number");
+        // $this->emDebug("INCOMING : $number");
         $output = "";
         if ($type== "E164") {
             // For US, append a 1 to 10 digit numbers that dont start with a 1
@@ -647,7 +647,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $output = $digits;
         }
         if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
-        $this->emDebug("output : $output");
+        // $this->emDebug("GOINGOUT : $output");
         return strval($output);
     }
 

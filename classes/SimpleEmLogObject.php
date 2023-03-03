@@ -223,7 +223,7 @@ class SimpleEmLogObject
     public function save() {
         if ($this->log_id) {
             // For saving existing log_ids
-            $this->module->emDebug("DIRTY IN SAVE: ", $this->dirty_parameters, $this->dirty_columns);
+            // $this->module->emDebug("DIRTY IN SAVE: ", $this->dirty_parameters, $this->dirty_columns);
             // We only update dirty parameters
             $this->dirty_parameters = array_unique($this->dirty_parameters);
 
