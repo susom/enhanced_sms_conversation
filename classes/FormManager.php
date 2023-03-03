@@ -123,7 +123,7 @@ class FormManager {
 
             // Parse out action tags
             $action_tags = $this->parseActionTags($dd["field_annotation"]);
-            $this->module->emDebug("Action Tags for $field_name", $action_tags);
+            // $this->module->emDebug("Action Tags for $field_name", $action_tags);
 
             // Skip any fields that are hidden-survey
             if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
@@ -287,10 +287,13 @@ class FormManager {
      * @return bool
      */
     private function skipDueToBranching($branching_logic) {
-        $skip = false;
         if (!empty($branching_logic)) {
-            $skip = !\REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
-            $this->module->emDebug("Evaluating branching logic for $this->record_id in event $this->event_id with $branching_logic", !$skip);
+            $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
+            // if result is true, then do not skip.  If result is false, the skip.
+            $this->module->emDebug("Evaluating branching logic for $this->record_id in event $this->event_id with $branching_logic", $result);
+            $skip = !$result;
+        } else {
+            $skip = false;
         }
         return $skip;
     }
