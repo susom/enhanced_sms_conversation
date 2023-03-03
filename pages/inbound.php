@@ -30,10 +30,11 @@ ApiVersion=2010-04-01
  */
 
 
-$module->emDebug("Here!");
+$module->emDebug("Here!", $_POST);
+var_dump($_SERVER);
 
 // Ignoring any non-POST hits to this endpoint
-if ($_SERVER['REQUEST_METHOD'] === "POST") {
+if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
     // // Log inbound message
     // $MH = new MessageHistory($this->module);

@@ -80,7 +80,7 @@ class TwilioManager {
                     'body' => $message
                 ]
             );
-            $this->module->emDebug("SEND SMS RESPONSE: " . json_encode($sms));
+            $this->module->emDebug("SEND SMS RESPONSE: ",$sms->sid);
 
             // Save a copy of the outgoing message
             $MH = new MessageHistory($this->module);
@@ -88,11 +88,11 @@ class TwilioManager {
                 'from_number' => $this->twilio_number,
                 'to_number' => $to,
                 'body' => $message,
-                'response' => $sms
-                // 'error_code' => $sms->errorCode,
-                // 'error_message' => $sms->errorMessage,
-                // 'status' => $sms->status,
-                // 'sid' => $sms->sid
+                'response' => json_encode([
+                    "errorMessage" => $sms->errorMessage,
+                    "errorCode" => $sms->errorCode,
+                    "sid"   => $sms->sid
+                                          ])
             ]);
             $MH->save();
 

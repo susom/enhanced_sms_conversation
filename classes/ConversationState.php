@@ -78,6 +78,7 @@ class ConversationState extends SimpleEmLogObject
             $default_reminder_min = $this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id);
             $ts = time() + ($default_reminder_min * 60);
         }
+        $this->module->emDebug("Setting Reminder Ts to $ts");
         $this->setValue('reminder_ts', $ts);
     }
 

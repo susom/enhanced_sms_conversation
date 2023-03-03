@@ -615,6 +615,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function formatNumber($number, $type = "E164") {
         // REDCap stores numbers like '(650) 123-4567' -- convert to +16501234567
         $digits = preg_replace('/[^\d]/', '', $number);
+        $this->emDebug("INCOMING : $number");
         $output = "";
         if ($type== "E164") {
             // For US, append a 1 to 10 digit numbers that dont start with a 1
@@ -623,7 +624,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             } else {
                 $output = $digits;
             }
-            // return "+".$digits;
+            $output = "+".$output;
         } elseif ($type == "redcap") {
             if (strlen($digits) === 11 && left($digits,1,) == "1") {
                 // 16503803405 => 6503803405
@@ -631,12 +632,15 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             if (strlen($digits) === 10) {
                 // 6503803405 => (650) 380-3405
-                $output = "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
+                // TODO: ANDY? in redcap_data it's stored as 6503803405
+                //$output = "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
+                $output = $digits;
             }
         } elseif ($type == "digits") {
             $output = $digits;
         }
         if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
+        $this->emDebug("output : $output");
         return strval($output);
     }
 
@@ -687,7 +691,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)) . " -- taking first value");
             }
             $result = empty($results) ? null : strval(key($results));
-            $this->emDebug("Query for $number", $result);
+            $this->emDebug("Query for $number", $result, $params);
         }
         return $result;
     }
@@ -801,10 +805,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $newReminder = $CS->getExpiryTs() + 600;    // Just add some time to ensure the reminder doesn't go off again
                     $this->emDebug("Cron updating #" . $CS->getId() . " reminder from $currentReminder to $newReminder");
                     $CS->setReminderTs($newReminder);
+                    $this->emDebug("CS Reminder: " . $CS->getReminderTs());
                 } else {
                     $this->emDebug("This shouldn't happen", $timestamp, $CS);
                 }
                 $CS->save();
+                $this->emDebug("CS Reminder after save: " . $CS->getReminderTs());
             }
 
         }

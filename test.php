@@ -24,9 +24,12 @@ $module->emDebug("INBOUND: $url");
  * TEST6: CHECK TWILIO SENDING
  */
 
+if (true) {
+    $module->cronScanConversationState([]);
+}
 
 //TEST11: ValidateResponse
-if (true) {
+if (false) {
     $record_id = 1;
     $form = "thursday";
     $event = "week_1_sms_arm_1";
