@@ -445,7 +445,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
             }
 
-            $this->emDebug("Received $body from $record_id");
+            $this->emDebug("Received reply of '$body' from $record_id");
 
             // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
@@ -539,6 +539,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $saveSuccessful = empty($result['errors']);
                 if ($saveSuccessful) {
                     // Move onto the next question
+                    $this->emDebug("FM", $FM);
+
                     $next_field = $FM->getNextField();
                     if (empty($next_field)) {
                         // We have reached the end of the survey
@@ -609,7 +611,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             'project_id' => $project_id,
             'data'       => $data
         ]);
-        $this->emDebug("Saving $response to record: $record_id", $result);
+        $this->emDebug("Saving $response to record: $record_id" . json_encode($result));
         return $result;
     }
 
@@ -698,7 +700,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)) . " -- taking first value");
             }
             $result = empty($results) ? null : strval(key($results));
-            $this->emDebug("Query for $number", $result, $params);
+            // $this->emDebug("Query for $number", $result, $params);
         }
         return $result;
     }

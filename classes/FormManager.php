@@ -293,7 +293,7 @@ class FormManager {
         if (!empty($branching_logic)) {
             $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
             // if result is true, then do not skip.  If result is false, the skip.
-            $this->module->emDebug("Evaluating branching logic for $this->record_id in event $this->event_id with $branching_logic", $result);
+            $this->module->emDebug("Evaluating " . json_encode($branching_logic) . " for record $this->record_id - " . ($result ? "TRUE": "FALSE"));
             $skip = !$result;
         } else {
             $skip = false;
