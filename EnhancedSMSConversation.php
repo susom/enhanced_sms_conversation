@@ -148,7 +148,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (empty($current_field)) {
                 // Survey is complete on creation - was only descriptive messages
                 $this->emDebug("Setting Expired");
-                $CS->setState("EXPIRED");
+                $CS->setState("COMPLETE");
+                // TODO: Maybe add complete method that updates survey timestamps,since it can happen from two locations
+                // either here or during normal inbound processing...
             } else {
                 $CS->setState("ACTIVE");
                 $CS->setExpiryTs();
@@ -156,7 +158,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             // $this->emDebug("About to create CS:", $CS);
             $CS->save();
-            $this->emDebug("SAVE COMPLETE- CS#" . $CS->getId());
+            $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
 
             // Cancel sending the REDCap Email
             return false;
@@ -503,7 +505,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function handleReply($record_id, $cell_number, $inbound_body) {
-        $nonsense_text_warning = $this->getProjectSetting('nonsense-text-warning',  $this->getProjectId());
 
         // Load up the TM
         $TM = $this->getTwilioManager($this->getProjectId());
@@ -589,7 +590,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                     // Repeat the question without advancing the current_field (TODO: He may not want the question label repeated or instructions here?
                     $invalid_response = $FM->getInvalidResponse();
-                    $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $invalid_response, $FM->getQuestionLabel()]));
+                    $outbound_sms = implode("\n", array_filter([$invalid_response, $FM->getQuestionLabel()]));
                     $TM->sendTwilioMessage($cell_number, $outbound_sms);
                 }
             } else {
