@@ -100,6 +100,14 @@ $config = $module->getConfig();
 <?php
 
 
+// $CS = new ConversationState($module, "ConversationState");
+
+$q = ConversationState::getActiveConversationsNeedingAttention($module, $module->getProjectId(), time());
+var_dump($q);
+
+
+exit();
+
 $TM = new TwilioManager($module,$module->getProjectId());
 
 $TC = $TM->getTwilioClient();

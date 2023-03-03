@@ -6,6 +6,30 @@ use \Exception;
 use ExternalModules\AbstractExternalModule;
 use ExternalModules\ExternalModules;
 
+/**
+ *
+
+ * Change logs:
+        select reml.*,
+        remlp1.value as 'parent_log_id',
+        remlp2.value as 'type',
+        remlp3.value as 'activity'
+        from
+        redcap_external_modules_log reml
+        left join redcap_external_modules_log_parameters remlp1 on reml.log_id = remlp1.log_id
+        left join redcap_external_modules_log_parameters remlp2 on reml.log_id = remlp2.log_id
+        left join redcap_external_modules_log_parameters remlp3 on reml.log_id = remlp3.log_id
+        where
+        reml.message = 'SELO_CHANGE_LOG'
+        and  remlp1.name = 'parent_log_id'
+        and  remlp2.name = 'type'
+        and  remlp3.name = 'activity'
+        ;
+
+ *
+ *
+ *
+ */
 class SimpleEmLogObject
 {
     /** @var EnhancedSMSConversation $module */
@@ -62,7 +86,7 @@ class SimpleEmLogObject
 
             // Query all data
             $sql = "select " . implode(", ", $columns) . " where log_id=? and message=?";
-            $module->emDebug("Load Sql: " . $sql);
+            // $module->emDebug("Load Sql: " . $sql);
             $q = $module->queryLogs($sql, [$log_id, $type]);
             if ($row = $q->fetch_assoc()) {
                 foreach ($row as $key=>$val) {
@@ -81,7 +105,7 @@ class SimpleEmLogObject
             }
         } else {
             // Create a new object - not yet saved
-            $this->module->emDebug("Making new object of type $type");
+            $this->module->emDebug("Creating new $type");
         }
     }
 
@@ -95,11 +119,6 @@ class SimpleEmLogObject
      * @return void
      */
     public function setValue($name, $val) {
-        if ($val == '' or is_null($val)) {
-            $this->module->emDebug("ERROR IN SET VALUE: Cannot set $name to empty or null");
-            return;
-        }
-
         if(property_exists($this,$name)) {
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
@@ -108,8 +127,8 @@ class SimpleEmLogObject
                     $this->$name = $val;
                     $this->dirty_columns[$name] = $val;
                 } else {
-                    // No change in value
-                    $this->module->emDebug("Property $name remains unchanged as $val");
+                    // No change in property value
+                    // $this->module->emDebug("Property $name remains unchanged as $val");
                 }
             } else {
                 $this->last_error = "The property $name is not updatable.";
@@ -119,24 +138,29 @@ class SimpleEmLogObject
         } else {
             if (isset($this->object_parameters[$name])) {
                 // Existing parameter
-                if (is_null($val)) {
-                    // Null parameter values are not supported - skip and mark for removal
+                if (is_null($val) or $val = '') {
+                    // Null or empty parameter values are not supported - skip and mark for removal
                     $this->dirty_parameters[] = $name;
                     unset($this->object_parameters[$name]);
                 } else if ($this->object_parameters[$name] == $val) {
                     // Skip - no change to value
-                    $this->module->emDebug("The parameter $name remains unchanged as $val");
+                    // $this->module->emDebug("The parameter $name remains unchanged as $val");
                 } else {
                     // Update
-                    $this->module->emDebug("Updated property $name from " . $this->object_parameters[$name] . " to $val");
+                    // $this->module->emDebug("Updating parameter $name from " . $this->object_parameters[$name] . " to $val");
                     $this->object_parameters[$name] = $val;
                     $this->dirty_parameters[] = $name;
                 }
             } else {
-                // Create
-                $this->module->emDebug("Created property $name from " . $this->object_parameters[$name] . " to $val");
-                $this->object_parameters[$name] = $val;
-                $this->dirty_parameters[] = $name;
+                if (is_null($val) or $val = '') {
+                    // Null or empty parameter values are not supported
+                    $this->module->emDebug("Skipping $name -- null/empty parameters are not allowed");
+                } else {
+                    // Create
+                    // $this->module->emDebug("Creating parameter $name as $val");
+                    $this->object_parameters[$name] = $val;
+                    $this->dirty_parameters[] = $name;
+                }
             }
         }
     }
@@ -216,7 +240,7 @@ class SimpleEmLogObject
 
                         $this->module->emDebug("RESULT OF QUERY: ", $result);
 
-                        $this->logChange("Updated $k to $v");
+                        $this->logChange(['update', $k, $v]);
                         // Remove from dirty parameters
                         $this->dirty_parameters = array_diff($this->dirty_parameters, [$k]);
                     } else {
@@ -232,17 +256,17 @@ class SimpleEmLogObject
             foreach ($this->dirty_parameters as $name) {
                 $sql = "delete from redcap_external_modules_log_parameters where log_id=? and name=? limit 1";
                 $result = $this->module->query($sql, [$this->log_id, $name]);
-                $this->logChange("Removed parameter $name");
+                $this->logChange(["delete parameter", $name]);
                 $this->module->emDebug("Deleted parameter $name for log id $this->log_id", $result);
             }
 
             if (!empty($this->dirty_columns)) {
-                foreach ($this->dirty_columns as $col) {
+                foreach ($this->dirty_columns as $col => $val) {
                     if (in_array($col, self::UPDATABLE_COLUMNS)) {
                         $sql = "update redcap_external_modules_log set " . $col . "=? where log_id=?";
                         $result = $this->module->query($sql, [$this->$col, $this->log_id]);
                         $this->module->emDebug("Updated $col to " . $this->$col);
-                        $this->logChange("Updated $col to " . $this->$col);
+                        $this->logChange(["update", $col, $this->$col]);
                     } else {
                         $this->module->emError("You cannot update column $col on a previously saved object");
                     }
@@ -253,9 +277,8 @@ class SimpleEmLogObject
         } else {
             // Create New Log Entry (merging columns and parameters)
             $parameters = array_merge($this->dirty_columns, $this->object_parameters);
-            $this->module->emDebug("About to save: " , $parameters);
+            // $this->module->emDebug("About to save: " , $parameters);
             $this->log_id = $this->module->log($this->type, $parameters);
-            $this->module->emDebug("Created new log entry as $this->log_id", $this->object_parameters);
         }
 
         // Clear object
@@ -275,7 +298,7 @@ class SimpleEmLogObject
         if ($this->log_id) {
             $result = $this->module->removeLogs("log_id = ?", [$this->log_id]);
             $this->module->emDebug("Removed log $this->log_id with result: " . json_encode($result));
-            $this->logChange("Deleted id " . $this->log_id);
+            $this->logChange(["delete", $this->log_id]);
             $this->saveChangeLog();
             return true;
         } else {
@@ -341,7 +364,9 @@ class SimpleEmLogObject
                 "type" => $this->type,
                 "activity" => json_encode($this->change_log)
             ];
+            if (!empty($this->project_id)) $params['project_id'] = $this->project_id;
             $this->module->log(static::LOG_CHANGES_TYPE, $params);
+            $this->change_log = [];
         }
     }
 

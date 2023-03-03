@@ -115,7 +115,7 @@
         },
         {
             "key": "default-conversation-expiry-minutes",
-            "name": "<b>Expire Conversations</b><br><i>(optional)</i> If set to a value, conversations will expire after this number of minutes without a response.  The counter restarts after each participant response.",
+            "name": "<b>Expire Conversations</b><br><i>(optional)</i> If set to a value, conversations will expire after this number of minutes without a response.  If blank, the conversation/survey will never expire.  To decrease server load, we recommend setting an expiration, even if it is very large",
             "required": false,
             "type": "text"
         },

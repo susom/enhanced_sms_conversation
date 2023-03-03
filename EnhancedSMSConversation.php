@@ -716,6 +716,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     // }
 
 
+
+    public function cronPurgeSeloChangeLogs() {
+        //TODO: Add cron for purging change logs
+        // Purge ConversationState and MessageHistory change logs
+    }
+
     /**
      * Cron is called every minute to check for outbound messages
      * @param array $cronParameters

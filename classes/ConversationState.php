@@ -53,16 +53,18 @@ class ConversationState extends SimpleEmLogObject
      * @return void
      */
     public function setExpiryTs($ts = null) {
-        $this->module->emDebug("TS IN", $ts);
         $project_id = $this->getValue('project_id');
-        $this->module->emDebug("Got project $project_id");
         if (empty($ts)) {
-            $default_expiry_min = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id) ?? 0;
-            $this->module->emDebug("default-conversation-expiry-minutes = '$default_expiry_min'");
-            $ts = time() + ($default_expiry_min * 60);
+            $default_expiry_min = $this->module->getProjectSetting('default-conversation-expiry-minutes', $project_id);
+
+            if (empty($default_expiry_min)) {
+                // Never expire this conversation
+            } else {
+                $this->module->emDebug("default-conversation-expiry-minutes = $default_expiry_min");
+                $ts = time() + ($default_expiry_min * 60);
+            }
         }
-        $this->module->emDebug("TS BEFORE SAVE", $ts);
-        $this->setValue('expiry_ts', $ts);
+        if (is_numeric($ts)) $this->setValue('expiry_ts', $ts);
     }
 
     /**
@@ -252,10 +254,9 @@ class ConversationState extends SimpleEmLogObject
         $state = "ACTIVE";
         $filter_clause = "state = ? and project_id = ? and (expiry_ts < ? or reminder_ts < ?)";
         $objs = self::queryObjects($module, $type, $filter_clause, [$state, $project_id, $timestamp, $timestamp]);
-
         $count = count($objs);
         $module->emDebug("Found $count hits with $filter_clause");
-        $module->emDebug("with STATE: $state / ProjectID: $project_id, TIMESTAMP: $timestamp");
+        // $module->emDebug("with STATE: $state / ProjectID: $project_id, TIMESTAMP: $timestamp");
         if ($count == 0) {
             // None found, return false;
             $result = false;
