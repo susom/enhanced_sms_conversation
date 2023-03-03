@@ -118,6 +118,7 @@ class FormManager {
             // So record the next field and exit
             if ($this->current_field && $this->current_field !== $field_name) {
                 $this->next_field = $field_name;
+                $this->module->emDebug("Setting next_field to $field_name");
                 break;
             }
 
@@ -160,11 +161,11 @@ class FormManager {
                 $this->current_question = $this->pipe($dd['field_label']);
                 $this->action_tags      = $action_tags;
 
+                $this->module->emDebug("Setting current_field to $field_name");
+
                 if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
-                    $this->module->emDebug($dd["field_type"] . " is enumerated");
                     list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
                 } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
-                    $this->module->emDebug($dd["field_type"] . " is text");
                     $this->choices = [];
                     if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
                         $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];

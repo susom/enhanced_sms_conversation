@@ -445,7 +445,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
             }
 
-            $this->emDebug("Received reply of '$body' from $record_id");
+            $this->emDebug("[$record_id] Inbound response: $body");
 
             // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
@@ -516,17 +516,23 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $current_field = $CS->getCurrentField();
             $event_id = $CS->getEventId();
 
+            if (empty($current_field)) {
+                // TODO: If we do not have a current field, then something has gone wrong and we should be ending the survey
+                $this->emError("Invalid Conversation State", $CS);
+                throw new Exception("Something went wrong with " . $CS->getId() . " - Invalid conversation state");
+            }
+
             // Update Timestamps
             $CS->setReminderTs();
             $CS->setLastResponseTs();
 
             // Get FormManager to get validation and response info.
-            $FM = new FormManager($this, $CS->getInstrument(),$current_field, $record_id, $event_id, $this->getProjectId());
+            $FM = new FormManager($this, $CS->getInstrument(), $current_field, $record_id, $event_id, $this->getProjectId());
 
             // Check the participant response and try to confirm it is a valid response
             if (false !== $response = $FM->validateResponse($inbound_body)) {
                 // POTENTIALLY VALID RESPONSE
-                $this->emDebug("We have a possibly valid response of $response for users sms of $inbound_body in field " . $current_field);
+                $this->emDebug("Response for $current_field of $inbound_body has been mapped to $response");
 
                 // Save the response to redcap?
                 $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
@@ -609,7 +615,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             'project_id' => $project_id,
             'data'       => $data
         ]);
-        $this->emDebug("Saving $response to record: $record_id" . json_encode($result));
+        $this->emDebug("[$record_id] Saved: " . json_encode($result));
         return $result;
     }
 
