@@ -106,7 +106,7 @@ class SimpleEmLogObject
                 if ($this->$name != $val) {
                     $this->module->emDebug("Updated property $name from " . $this->$name . " to $val");
                     $this->$name = $val;
-                    $this->dirty_columns[] = $name;
+                    $this->dirty_columns[$name] = $val;
                 } else {
                     // No change in value
                     $this->module->emDebug("Property $name remains unchanged as $val");
