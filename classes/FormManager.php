@@ -141,7 +141,7 @@ class FormManager {
             }
 
             // Check to see if we skip question due to branching logic
-            if ($this->skipDueToBranching($dd['branching_logic'])) {
+            if (!empty($dd['branching_logic']) && $this->skipDueToBranching($dd['branching_logic'])) {
                 $this->module->emDebug("Skipping $field_name for record $this->record_id due to branching logic");
                 continue;
             }
@@ -156,13 +156,15 @@ class FormManager {
                 $this->descriptive_messages[] = $this->pipe($dd['field_label']);
             } else {
                 // This is the next question field
-                $this->current_field = $field_name;
+                $this->current_field    = $field_name;
                 $this->current_question = $this->pipe($dd['field_label']);
-                $this->action_tags = $action_tags;
+                $this->action_tags      = $action_tags;
 
                 if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
+                    $this->module->emDebug($dd["field_type"] . " is enumerated");
                     list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
                 } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
+                    $this->module->emDebug($dd["field_type"] . " is text");
                     $this->choices = [];
                     if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
                         $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
@@ -173,6 +175,7 @@ class FormManager {
                     }
                     // TODO: Support things like date fields...
                 } else {
+                    $this->module->emDebug($dd["field_type"] . " is something else", $dd);
                     throw new \Exception("Unable to parse this dd type:", $dd);
                 }
             }
