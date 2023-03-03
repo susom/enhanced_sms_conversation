@@ -551,15 +551,15 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $current_field = '';
                     } else {
                         // Let's load the next question
-                        $FM2 = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
+                        $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
 
                         // And send next round of SMS messages if any
                         $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getArrayOfMessagesAndQuestion());
 
                         // If the last field was just descriptive, we could be done here.  We can tell by seeing if
                         // the Form Manager has a current_field or not
-                        $current_field = $FM2->getCurrentField();
-                        $this->emDebug("After save, started at " . $FM->getStartField() . " and now at $current_field");
+                        $this->emDebug("[$record_id] Response saved, moving current field from $current_field to " . $FM->getCurrentField());
+                        $current_field = $FM->getCurrentField();
                     }
 
                     $CS->setCurrentField($current_field);

@@ -142,10 +142,9 @@ class ConversationState extends SimpleEmLogObject
     }
 
     public function setCurrentField($field) {
-        $this->module->emDebug("About to currentField to $field");
+        $this->module->emDebug("About to set currentField to $field");
         $this->setValue('current_field', $field);
-        $this->module->emDebug("set field $field");
-
+        // $this->module->emDebug("set field $field");
     }
 
 
