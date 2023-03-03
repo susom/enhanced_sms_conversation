@@ -135,7 +135,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $CS = new ConversationState($this);
             $params = [
                 "project_id"    => $project_id,
-                "record_id"     => $record_id,
+                "record"        => $record_id,
                 "instrument"    => $instrument,
                 "event_id"      => $event_id,
                 "instance"      => $mc_context['instance'] ?? 1,
@@ -154,7 +154,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $CS->setExpiryTs();
                 $CS->setReminderTs();
             }
-            $this->emDebug("About to create CS:" . json_encode($params));
+            $this->emDebug("About to create CS:", $CS);
             $CS->save();
             $this->emDebug("SAVE COMPLETE- CS#" . $CS->getId());
 

@@ -30,8 +30,8 @@ ApiVersion=2010-04-01
  */
 
 
-$module->emDebug("Here!", $_POST);
-var_dump($_SERVER);
+// $module->emDebug("Here!", $_POST);
+// var_dump($_SERVER);
 
 // Ignoring any non-POST hits to this endpoint
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
     // ]);
     // $MH->save();
 
-    $module->emDebug("Inbound Post:", $_POST);
+    $module->emDebug("Inbound Post:" . json_encode($_POST));
 
     if ($module->getProjectSetting('disable-incoming-sms')) {
         $module->emDebug("Inbound processing disabled.");

@@ -101,33 +101,15 @@ $config = $module->getConfig();
 <?php
 
 
-// $CS = new ConversationState($module, "ConversationState");
-
-// $q = ConversationState::getActiveConversationsNeedingAttention($module, $module->getProjectId(), time());
-// var_dump($q);
-
-
-exit();
-
-$TM = new TwilioManager($module,$module->getProjectId());
-
-$TC = $TM->getTwilioClient();
-var_dump($TM, $TC);
-exit();
-
-
-// var_dump($config);
 
 // Testing the metadata parser functions:
 /** @set \Project $proj */
 global $proj;
 
+$project_id = 81;
 $event_id = 167;
-
-//var_dump($FM);
-
 $record = "34";
-$next_field = '';
+
 
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",

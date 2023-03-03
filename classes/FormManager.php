@@ -345,7 +345,13 @@ class FormManager {
 
             // Set the invalid response
             if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
-                $response = "custom"; //todo
+                // [@ESMS-INVALID-RESPONSE] => Array
+                // (
+                //     [params] => "We don't understand. Please text Yes or No"
+                //     [params_json] => "We don't understand. Please text Yes or No"
+                //     [params_text] =>
+                // )
+                $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
             } else {
                 $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
             }
