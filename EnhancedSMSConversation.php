@@ -651,14 +651,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (strlen($digits) === 10) {
                 // 6503803405 => (650) 380-3405
                 // TODO: ANDY? in redcap_data it's stored as 6503803405
-                //$output = "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
-                $output = $digits;
+                $output = "(" . mid($digits,1,3) . ") " . mid($digits,4,3) . "-" . mid($digits,7,4);
+                //$output = $digits;
             }
         } elseif ($type == "digits") {
             $output = $digits;
         }
         if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
-        $this->emDebug("FORMATNUMBER $number => $output");
+        $this->emDebug("FORMATNUMBER $type $number => $output");
         return strval($output);
     }
 
@@ -703,6 +703,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 'fields' => [ $record_id_field ],
                 'project_id' => $project_id
             ];
+
+            $this->emDebug("Phone Lookup Params:" , $params);
             $results = REDCap::getData($params);
 
             if (count($results) > 1) {
