@@ -36,19 +36,19 @@ ApiVersion=2010-04-01
 // Ignoring any non-POST hits to this endpoint
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
-    // // Log inbound message
-    // $MH = new MessageHistory($this->module);
-    // $MH->setValues([
-    //     'from_number' => $_POST['From'],
-    //     'to_number'   => $_POST['To'],
-    //     'body'        => $_POST['Body'],
-    //     'status'      => $_POST['SmsStatus'],
-    //     'sid'         => $_POST['SmsMessageSid'],
-    //     'post'        => $_POST
-    // ]);
-    // $MH->save();
+    // Log inbound message
+    $MH = new MessageHistory($this->module);
+    $MH->setValues([
+        'from_number' => $_POST['From'],
+        'to_number'   => $_POST['To'],
+        'body'        => $_POST['Body'],
+        'status'      => $_POST['SmsStatus'],
+        'sid'         => $_POST['SmsMessageSid'],
+        'post'        => $_POST
+    ]);
+    $MH->save();
 
-    $module->emDebug("Inbound Post:" . json_encode($_POST));
+    // $module->emDebug("Inbound Post:" . json_encode($_POST));
 
     if ($module->getProjectSetting('disable-incoming-sms')) {
         $module->emDebug("Inbound processing disabled.");
