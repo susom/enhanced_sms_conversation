@@ -136,6 +136,7 @@ class SimpleEmLogObject
                 // Could throw and exception here but going to just swallow this for now
             }
         } else {
+            // Must be a parameter
             if (isset($this->object_parameters[$name])) {
                 // Existing parameter
                 if (is_null($val) or $val = '') {
@@ -152,7 +153,8 @@ class SimpleEmLogObject
                     $this->dirty_parameters[] = $name;
                 }
             } else {
-                if (is_null($val) or $val = '') {
+                // New parameter
+                if (is_null($val) || $val == '') {
                     // Null or empty parameter values are not supported
                     $this->module->emDebug("Skipping $name -- null/empty parameters are not allowed");
                 } else {
