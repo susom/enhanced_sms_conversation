@@ -123,7 +123,7 @@ class SimpleEmLogObject
             // Is object property
             if (in_array($name, self::UPDATABLE_COLUMNS)) {
                 if ($this->$name != $val) {
-                    $this->module->emDebug("Setting property $name value " . ($this->$name ? "" : "from $this->$name ") . "to $val");
+                    // $this->module->emDebug("Setting property $name value " . ($this->$name ? "" : "from $this->$name ") . "to $val");
                     $this->$name = $val;
                     $this->dirty_columns[$name] = $val;
                 } else {
