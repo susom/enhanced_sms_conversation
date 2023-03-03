@@ -237,10 +237,12 @@ class SimpleEmLogObject
                         // UPSERT THE VALUE
                         $sql = "INSERT INTO redcap_external_modules_log_parameters (log_id,name,value) " .
                             " VALUES (?,?,?) ON DUPLICATE KEY UPDATE value=?";
-                        $this->module->emDebug($sql);
-                        $result = $this->module->query($sql, [$this->log_id, $k, $v, $v]);
-
-                        $this->module->emDebug("RESULT OF QUERY: ", $result);
+                        // $this->module->emDebug($sql);
+                        $params = [$this->log_id, $k, $v, $v];
+                        $result = $this->module->query($sql, $params);
+                        if (!$result) {
+                            $this->module->emDebug("QUERY FAILED: ", $sql, $params, $result);
+                        }
 
                         $this->logChange(['update', $k, $v]);
                         // Remove from dirty parameters

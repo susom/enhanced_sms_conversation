@@ -217,6 +217,10 @@ class FormManager {
         return $this->invalid_response;
     }
 
+    public function getFieldDict() {
+        return $this->dict[$this->current_field];
+    }
+
 
     /**
      * Combine previous section headers, descriptive fields, and the actual question into an array of messages

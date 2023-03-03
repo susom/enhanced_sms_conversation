@@ -532,7 +532,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             // Check the participant response and try to confirm it is a valid response
             if (false !== $response = $FM->validateResponse($inbound_body)) {
                 // POTENTIALLY VALID RESPONSE
-                $this->emDebug("Response for $current_field of $inbound_body has been mapped to $response");
+                if ($response !== $inbound_body) {
+                    $this->emDebug("Response for $current_field of $inbound_body has been mapped to $response");
+                }
 
                 // Save the response to redcap?
                 $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
@@ -578,14 +580,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     }
                 } else {
                     // Error path during save - so we don't advance the current field
-                    $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors']);
+                    $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors'], $FM->getFieldDict());
                     REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $CS->getEventId(),$this->getProjectId());
 
                     // Since we are not validating the min/max, using REDCap save to validate and warn?
-                    $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
+                    // $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
 
-                    // Repeat the question without advancing the current_field
-                    $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $FM->getInstructions(), $FM->getQuestionLabel()]));
+
+                    // Repeat the question without advancing the current_field (TODO: He may not want the question label repeated or instructions here?
+                    $invalid_response = $FM->getInvalidResponse();
+                    $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $invalid_response, $FM->getQuestionLabel()]));
                     $TM->sendTwilioMessage($cell_number, $outbound_sms);
                 }
             } else {
