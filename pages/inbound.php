@@ -36,18 +36,6 @@ ApiVersion=2010-04-01
 // Ignoring any non-POST hits to this endpoint
 if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
-    // Log inbound message
-    $MH = new MessageHistory($this->module);
-    $MH->setValues([
-        'from_number' => $_POST['From'],
-        'to_number'   => $_POST['To'],
-        'body'        => $_POST['Body'],
-        'status'      => $_POST['SmsStatus'],
-        'sid'         => $_POST['SmsMessageSid'],
-        'post'        => $_POST
-    ]);
-    $MH->save();
-
     // $module->emDebug("Inbound Post:" . json_encode($_POST));
 
     if ($module->getProjectSetting('disable-incoming-sms')) {
@@ -56,6 +44,18 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
         $response =  "The system is offline - please check with the study administrator";
         // TODO: Log this inbound message
     } else {
+        // Log inbound message
+        $MH = new MessageHistory($this->module);
+        $MH->setValues([
+            'from_number' => $_POST['From'],
+            'to_number'   => $_POST['To'],
+            'body'        => $_POST['Body'],
+            'status'      => $_POST['SmsStatus'],
+            'sid'         => $_POST['SmsMessageSid'],
+            'post'        => $_POST
+        ]);
+        $MH->save();
+
         // Originally, we were thinking of using the inbound response to send the first reply, but due to the challenges
         // of sending sequential replies in the right order, we are just going to respond with nothing and if we have
         // messages to send back, we will probably send them as separate messages.
