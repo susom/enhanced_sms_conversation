@@ -252,11 +252,11 @@ class FormManager {
             // )
             $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
         } elseif (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-            $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
+            $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'] . ".\n";
         } elseif (!empty($text_validation_max)) {
-            $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
+            $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'] . ".\n";
         } elseif (!empty($text_validation_min)) {
-            $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
+            $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'] . ".\n";
         } else {
             $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
         }

@@ -546,37 +546,32 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                 $saveSuccessful = empty($result['errors']);
                 if ($saveSuccessful) {
-                    // Move onto the next question
-                    $next_field = $FM->getNextField();
-                    if (empty($next_field)) {
-                        // We have reached the end of the survey
-                        $current_field = '';
-                    } else {
-                        // Let's load the next question
+
+                    // Check if there is a field after the current question
+                    if ($next_field = $FM->getNextField()) {
+                        // Let's load the next field
                         $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
 
                         // And send next round of SMS messages if any
                         $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getArrayOfMessagesAndQuestion());
 
+                        $current_field = $FM->getCurrentField();
+
                         // If the last field was just descriptive, we could be done here.  We can tell by seeing if
                         // the Form Manager has a current_field or not
                         $this->emDebug("[$record_id] Response saved, moving current field from $current_field to " . $FM->getCurrentField());
-                        $current_field = $FM->getCurrentField();
+                    } else {
+                        // That was it - let's end the survey
+                        $current_field = '';
                     }
 
-                    $CS->setCurrentField($current_field);
-
-                    // See if Survey is Complete
-                    if ($current_field === '') {
-                        // We are at the end of the survey - there is nothing left to process
-
-                        // Set the completion timestamp
-                        // TODO: Do we need to set the form_status to '2'?  Probably...
-                        // TODO: Move this setSurveyTimestamp to the CS object...
-                        // $this->setSurveyTimestamp($CS->getSurveyId(),$CS->getEventId(),$CS->getRecordId(),
-                        //     $CS->getInstance(),"completion_time", date("Y-m-d H:i:s"));
+                    if (empty($current_field)) {
+                        // We have reached the end of the survey
                         $CS->setState('COMPLETE');
-                        // TODO: Is there a 'thank you' or is that part of the descriptive in the survey...
+                        // TODO: Do we display the end-of-survey message?
+                    } else {
+                        // Update to the new current_field
+                        $CS->setCurrentField($current_field);
                     }
                 } else {
                     // Error path during save - so we don't advance the current field
