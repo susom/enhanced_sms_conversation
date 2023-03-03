@@ -154,7 +154,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $CS->setExpiryTs();
                 $CS->setReminderTs();
             }
-            $this->emDebug("About to create CS:", $CS);
+            // $this->emDebug("About to create CS:", $CS);
             $CS->save();
             $this->emDebug("SAVE COMPLETE- CS#" . $CS->getId());
 
@@ -596,7 +596,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // False here means this is an invalid response for an enumerated field
                 // $this->emDebug("Response of $inbound_body was not valid for $current_field");
                 $invalid_response = $FM->getInvalidResponse();
-                $outbound_sms = implode("\n", array_filter([$nonsense_text_warning, $invalid_response]));
+                $outbound_sms = implode("\n", array_filter([$FM->getInstructions(), $invalid_response]));
                 // $nonsense_text_reply = $nonsense_text_warning . " " . $FM->getFieldInstruction($current_field);
                 $TM->sendTwilioMessage($cell_number, $outbound_sms);
             }
