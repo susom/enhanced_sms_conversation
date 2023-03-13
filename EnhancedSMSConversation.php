@@ -204,6 +204,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     public function getTwilioManager($project_id) {
         if ($this->TwilioManager === null) {
             $this->TwilioManager = new TwilioManager($this, $project_id);
+        } elseif (!empty($project_id) && $project_id != $this->TwilioManager->getProjectId()) {
+            // If the project_id is different, then make sure we have the correct Twilio Manager
+            $this->TwilioManager = new TwilioManager($this, $project_id);
         }
         return $this->TwilioManager;
     }
@@ -766,6 +769,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);
+            $this->emDebug("In Cron - loaded TM for project " . $TM->getProjectId());   // TP-2787
 
             // Set the PID (but not really sure this is being used)
             $_GET['pid'] = $project_id;
