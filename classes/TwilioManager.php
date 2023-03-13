@@ -36,6 +36,86 @@ class TwilioManager {
 
 
     /**
+     * Get the project id for context checking
+     * @return mixed
+     */
+    public function getProjectId() {
+        return $this->project_id;
+    }
+
+
+    /**
+     * Get a Number Object (useful for checking the endpoint configuration
+     * @return \Twilio\Rest\Api\V2010\Account\IncomingPhoneNumberInstance|null
+     */
+    public function getNumberDetails() {
+        /*  EXAMPLE OUTPUT (as object)
+              'accountSid' => string 'AC40b3884912172e03b4b9c2c0ad8d2ae8' (length=34)
+              'addressSid' => null
+              'addressRequirements' => string 'none' (length=4)
+              'apiVersion' => string '2010-04-01' (length=10)
+              'beta' => boolean false
+              'capabilities' =>
+                array (size=3)
+                  'voice' => boolean true
+                  'sms' => boolean true
+                  'mms' => boolean true
+              'dateCreated' =>
+                object(DateTime)[62]
+                  public 'date' => string '2023-02-02 22:15:49.000000' (length=26)
+                  public 'timezone_type' => int 1
+                  public 'timezone' => string '+00:00' (length=6)
+              'dateUpdated' =>
+                object(DateTime)[61]
+                  public 'date' => string '2023-03-02 22:10:33.000000' (length=26)
+                  public 'timezone_type' => int 1
+                  public 'timezone' => string '+00:00' (length=6)
+              'friendlyName' => string '(612) 482-3490 (ANDY LOCAL DEV - #28)' (length=37)
+              'identitySid' => null
+              'phoneNumber' => string '+16124823490' (length=12)
+              'origin' => string 'twilio' (length=6)
+              'sid' => string 'PN4b4c81b26c0e9dd1c4a0356cf9989709' (length=34)
+              'smsApplicationSid' => string '' (length=0)
+              'smsFallbackMethod' => string 'POST' (length=4)
+              'smsFallbackUrl' => string '' (length=0)
+              'smsMethod' => string 'POST' (length=4)
+              'smsUrl' => string 'https://redcap.stanford.edu/api/?type=module&prefix=enhanced_sms&page=pages%2Finbound&pid=27832&NOAUTH' (length=102)
+              'statusCallback' => string '' (length=0)
+              'statusCallbackMethod' => string 'POST' (length=4)
+              'trunkSid' => null
+              'uri' => string '/2010-04-01/Accounts/AC40b3884912172e03b4b9c2c0ad8d2ae8/IncomingPhoneNumbers/PN4b4c81b26c0e9dd1c4a0356cf9989709.json' (length=116)
+              'voiceReceiveMode' => null
+              'voiceApplicationSid' => string '' (length=0)
+              'voiceCallerIdLookup' => boolean false
+              'voiceFallbackMethod' => string 'POST' (length=4)
+              'voiceFallbackUrl' => string '' (length=0)
+              'voiceMethod' => string 'POST' (length=4)
+              'voiceUrl' => string 'https://demo.twilio.com/welcome/voice/' (length=38)
+              'emergencyStatus' => string 'Active' (length=6)
+              'emergencyAddressSid' => null
+              'emergencyAddressStatus' => string 'unregistered' (length=12)
+              'bundleSid' => null
+              'status' => string 'in-use' (length=6)
+        */
+        try {
+            $pn = $this->getTwilioClient()->incomingPhoneNumbers->read(["phoneNumber" => $this->twilio_number],20);
+
+            $result = null;
+            if (empty($pn)) {
+                $this->module->emError("Number: $this->twilio_number not found");
+            } else {
+                $result = $pn[0];
+            }
+            return $result;
+        } catch (\Exception $e) {
+            $this->module->emError("Exception in getNumberDetails: " . $e->getMessage());
+            return null;
+        }
+    }
+
+
+
+    /**
      * Helper to send multiple messages at once
      * @param string $to_number
      * @param array $messages
