@@ -37,6 +37,12 @@
                 "url": "pages/detail.php"
             },
             {
+                "name": "ESMS Conversations",
+                "icon": "fas fa-cog",
+                "url": "pages/conversations.php",
+                "show-header-and-footer": true
+            },
+            {
                 "name": "ESMS: Superuser Testing",
                 "superuseronly": true,
                 "icon": "fas fa-cog",
@@ -59,6 +65,10 @@
 
     "no-csrf-pages": [
         "pages/inbound"
+    ],
+
+    "auth-ajax-actions": [
+        "getConversations"
     ],
 
     "crons": [
