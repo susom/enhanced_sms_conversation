@@ -849,6 +849,98 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
 
+    /**
+     * Adding JSMO
+     * @param $data
+     * @param $init_method
+     * @return void
+     */
+    public function injectJSMO($data = null, $init_method = null) {
+        echo $this->initializeJavascriptModuleObject();
+        $cmds = [
+            "const module = " . $this->getJavascriptModuleObjectName()
+        ];
+        if (!empty($data)) $cmds[] = "module.data = " . json_encode($data);
+        if (!empty($init_method)) $cmds[] = "module.afterRender(module." . $init_method . ")";
+        ?>
+        <script src="<?=$this->getUrl("assets/jsmo.js",true)?>"></script>
+        <script>
+            $(function() { <?php echo implode(";\n", $cmds) ?> })
+        </script>
+        <?php
+    }
+
+
+    /**
+     * Ajax handler
+     * @param $action
+     * @param $payload
+     * @param $project_id
+     * @param $record
+     * @param $instrument
+     * @param $event_id
+     * @param $repeat_instance
+     * @param $survey_hash
+     * @param $response_id
+     * @param $survey_queue_hash
+     * @param $page
+     * @param $page_full
+     * @param $user_id
+     * @param $group_id
+     * @return array
+     * @throws Exception
+     */
+    public function redcap_module_ajax($action, $payload, $project_id, $record, $instrument, $event_id, $repeat_instance,
+                                       $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id)
+    {
+        switch($action) {
+            case "getConversations":
+                $sql = "select reml.log_id,
+                           reml.timestamp,
+                           reml.record,
+                           remlp1.value as 'reminder_ts',
+                           remlp2.value as 'expiry_ts',
+                           remlp3.value as 'cell_number',
+                           remlp4.value as 'state',
+                           remlp5.value as 'current_field',
+                           remlp6.value as 'last_response_ts'
+                    from
+                        redcap_external_modules_log reml
+                    left join redcap_external_modules_log_parameters remlp1 on reml.log_id = remlp1.log_id and remlp1.name='reminder_ts'
+                    left join redcap_external_modules_log_parameters remlp2 on reml.log_id = remlp2.log_id and remlp2.name='expiry_ts'
+                    left join redcap_external_modules_log_parameters remlp3 on reml.log_id = remlp3.log_id and remlp3.name='cell_number'
+                    left join redcap_external_modules_log_parameters remlp4 on reml.log_id = remlp4.log_id and remlp4.name='state'
+                    left join redcap_external_modules_log_parameters remlp5 on reml.log_id = remlp5.log_id and remlp5.name='current_field'
+                    left join redcap_external_modules_log_parameters remlp6 on reml.log_id = remlp6.log_id and remlp6.name='last_response_ts'
+
+                    where
+                         reml.message = 'ConversationState'
+                    and  reml.project_id = ?";
+                $q = $this->query($sql,[$this->getProjectId()]);
+                $results = [];
+                while ($row = db_fetch_row($q)) $results[] = $row;
+                $result = [
+                    "data" => $results
+                    ];
+                break;
+            case "getConversationStates":
+
+                break;
+            case "TestAction":
+                \REDCap::logEvent("Test Action Received");
+                $result = [
+                    "success"=>true,
+                    "user_id"=>$user_id
+                ];
+                break;
+            default:
+                // Action not defined
+                throw new Exception ("Action $action is not defined");
+        }
+
+        // Return is left as php object, is converted to json automatically
+        return $result;
+    }
 
 
 
