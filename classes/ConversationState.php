@@ -26,6 +26,7 @@ class ConversationState extends SimpleEmLogObject
         'cell_number',
         'current_field',
         'reminder_ts',      // each time participant responds, we re-set the reminder time
+        'reminder_count',   // The number of times a reminder has been sent
         'expiry_ts',        // each time a participant responds, we re-calc the expiry time
         'last_response_ts', //time of last reponse from participant
         'state',            // ACTIVE (created) -> EXPIRED / COMPLETE / ERROR?
@@ -68,6 +69,9 @@ class ConversationState extends SimpleEmLogObject
         if (is_numeric($ts)) {
             $this->module->emDebug("Setting Reminder Ts to $ts");
             $this->setValue('reminder_ts', $ts);
+        } elseif (is_null($ts)) {
+            // Remove the reminder if null
+            $this->setValue('reminder_ts', null);
         }
     }
 
@@ -118,9 +122,20 @@ class ConversationState extends SimpleEmLogObject
         return $this->getValue('state');
     }
 
+    /**
+     * Reminders already sent
+     * @return int|mixed
+     */
+    public function getReminderCount() {
+        return $this->getValue('reminder_count') ?? 0;
+    }
 
 
     /** SETTERS */
+
+    public function incrementReminderCount() {
+        $this->setValue('reminder_count', $this->getReminderCount()+1);
+    }
 
     public function setState($state) {
         $state = strtoupper($state);
