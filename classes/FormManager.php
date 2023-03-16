@@ -250,7 +250,12 @@ class FormManager {
     }
 
     public function getReminderTime() {
-        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_TIME);
+        $minutes = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_TIME);
+        if (is_null($minutes)) {
+            $minutes = $this->module->getProjectSetting('default-expiry-minutes');
+        }
+        return $minutes;
+
     }
 
     public function getReminderMaxCount() {
@@ -259,10 +264,15 @@ class FormManager {
 
     public function getExpiryMessage() {
         return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_MESSAGE);
+
     }
 
     public function getExpiryTime() {
-        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_TIME);
+        $minutes = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_TIME);
+        if (is_null($minutes)) {
+            $minutes = $this->module->getProjectSetting('default-expiry-minutes');
+        }
+        return $minutes;
     }
 
 
