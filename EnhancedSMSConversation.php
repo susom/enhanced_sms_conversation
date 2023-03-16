@@ -24,6 +24,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     const SUBJECT_TAG_FOR_EMAIL = "@ESMS";
     const ACTION_TAG_IGNORE_FIELD = "@ESMS-IGNORE";
     const ACTION_TAG_INVALID_RESPONSE = "@ESMS-INVALID-RESPONSE";
+    const ACTION_TAG_REMINDER_MESSAGE = "@ESMS-REMINDER-MESSAGE";
+    const ACTION_TAG_REMINDER_TIME = "@ESMS-REMINDER-TIME";
+    const ACTION_TAG_REMINDER_MAX_COUNT = "@ESMS-REMINDER-MAX-COUNT";
+    const ACTION_TAG_EXPIRY_MESSAGE = "@ESMS-EXPIRY-MESSAGE";
+    const ACTION_TAG_EXPIRY_TIME = "@ESMS-EXPIRY-TIME";
+
+
+
 
     const GENERIC_SMS_REPLY_ERROR = "We're sorry - but something went wrong on our end.";
 
@@ -73,6 +81,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $mc_context = $MC->getContextAsArray();
         $this->emDebug("MC (" . PAGE . ") => " . json_encode($mc_context));
 
+        $source     = $mc_context['source'];
         $project_id = $mc_context['project_id'];
         $record_id  = $mc_context['record_id'];
         $event_id   = $mc_context['event_id'];
@@ -114,51 +123,56 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
 
         try {
-            //5. Clear out any existing states for this record in the state table
-            //   If it comes through the email, then we should start from blank state.
-            if ($CS = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
-                $id = $CS->getId();
-                $this->emDebug("Closing duplicate conversation #$id for $cell_number / Record " . $CS->getRecordId());
-                $CS->setState('EXPIRED');
+            // If this is an instrument survey - then clear out any older surveys
+            if (!$instrument && $source == 'Alert') {
+                // This is an ALERT message -- let's just send it.  No need to create a conversation state
+                $TM = $this->getTwilioManager($project_id);
+                $msg = strip_tags($message);
+                $TM->sendTwilioMessage($cell_number, $msg);
+                // TODO: Do we need to log in redcap_log_event here?
+                REDCap::logEvent("ESMS Alert Sent", $msg,"",$record_id,$event_id,$project_id);
+            } elseif (!empty($instrument)) {
+
+                //6. get the first sms to send
+                $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id);
+                $TM = $this->getTwilioManager($project_id);
+                // TODO: Do we want to do a first-time orientation or just build that into the survey?
+                $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
+                $current_field = $FM->getCurrentField();
+
+                //7. Set the state table
+                // Create a new Conversation State
+                $CS = new ConversationState($this);
+                $params = [
+                    "project_id"    => $project_id,
+                    "record"        => $record_id,
+                    "instrument"    => $instrument,
+                    "event_id"      => $event_id,
+                    "instance"      => $mc_context['instance'] ?? 1,
+                    "cell_number"   => $cell_number,
+                    "current_field" => $current_field
+                ];
+                $CS->setValues($params);
+                $this->emDebug("Current Field", $current_field);
+
+                if (empty($current_field)) {
+                    // Survey is complete on creation - was only descriptive messages
+                    $this->emDebug("Setting Expired");
+                    $CS->setState("COMPLETE");
+                    // TODO: Maybe add complete method that updates survey timestamps,since it can happen from two locations
+                    // either here or during normal inbound processing...
+                } else {
+                    $CS->setState("ACTIVE");
+                    $CS->setExpiryTs();
+                    $CS->setReminderTs();
+                }
+                // $this->emDebug("About to create CS:", $CS);
                 $CS->save();
-            }
+                $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
 
-            //6. get the first sms to send
-            $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id);
-            $TM = $this->getTwilioManager($project_id);
-            // TODO: Do we want to do a first-time orientation or just build that into the survey?
-            $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
-            $current_field = $FM->getCurrentField();
-
-            //7. Set the state table
-            // Create a new Conversation State
-            $CS = new ConversationState($this);
-            $params = [
-                "project_id"    => $project_id,
-                "record"        => $record_id,
-                "instrument"    => $instrument,
-                "event_id"      => $event_id,
-                "instance"      => $mc_context['instance'] ?? 1,
-                "cell_number"   => $cell_number,
-                "current_field" => $current_field
-            ];
-            $CS->setValues($params);
-            $this->emDebug("Current Field", $current_field);
-
-            if (empty($current_field)) {
-                // Survey is complete on creation - was only descriptive messages
-                $this->emDebug("Setting Expired");
-                $CS->setState("COMPLETE");
-                // TODO: Maybe add complete method that updates survey timestamps,since it can happen from two locations
-                // either here or during normal inbound processing...
             } else {
-                $CS->setState("ACTIVE");
-                $CS->setExpiryTs();
-                $CS->setReminderTs();
+                $this->emError("Not sure how we ended up here:", func_get_args());
             }
-            $this->emDebug("About to create CS:", $CS);
-            $CS->save();
-            $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
 
             // Cancel sending the REDCap Email
             return false;
@@ -661,7 +675,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $output = $digits;
         }
         if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
-        $this->emDebug("FORMATNUMBER $type $number => $output");
+        // $this->emDebug("FORMATNUMBER $type $number => $output");
         return strval($output);
     }
 
@@ -768,7 +782,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);
-            $this->emDebug("In Cron - loaded TM for project " . $TM->getProjectId());   // TP-2787
+            $this->emDebug("[CRON] PID#" . $TM->getProjectId());   // TP-2787
 
             // Set the PID (but not really sure this is being used)
             $_GET['pid'] = $project_id;
@@ -779,7 +793,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             // Loop through all conversations that might be expired or require a reminder
             foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
-                $this->emDebug("working on ID: ". $CS->getId());
+                $this->emDebug("Processing Needed Action for ID: ". $CS->getId());
                 if ($CS->getExpiryTs() < $timestamp ) {
                     // CS has expired
                     if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
@@ -804,7 +818,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     }
                 } elseif($CS->getReminderTs() < $timestamp) {
                     // Time to send a reminder
-                    $reminder_test_warning = $this->getProjectSetting('reminder-text-warning', $project_id);
+                    $reminder_test_warning = $this->getProjectSetting('default-reminder-text', $project_id);
                     $FM = new FormManager($this, $CS->getInstrument(), $CS->getCurrentField(), $CS->getRecordId(), $CS->getEventId(), $project_id);
 
 
@@ -841,8 +855,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // Put the pid back the way it was before this cron job (likely doesn't matter, but is good housekeeping practice)
         $_GET['pid'] = $originalPid;
-        $this->emDebug("===Cron completed.");
-
         return "The \"{$cronParameters['cron_description']}\" cron job completed successfully.";
     }
 
@@ -915,6 +927,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     where
                          reml.message = 'ConversationState'
                     and  reml.project_id = ?";
+                //TODO: Could also do this with EMSO query method...
                 $q = $this->query($sql,[$this->getProjectId()]);
                 $results = [];
                 while ($row = db_fetch_row($q)) $results[] = $row;
@@ -924,6 +937,14 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 break;
             case "getConversationStates":
 
+                break;
+            case "deleteConversations":
+                // Delete all conversations
+                $ids = ConversationState::queryIds($this, "ConversationState");
+                foreach ($ids as $id) {
+                    $result = $this->removeLogs("log_id = ?", [$id]);
+                    $this->emDebug("Deleting id $id, $result");
+                }
                 break;
             case "TestAction":
                 \REDCap::logEvent("Test Action Received");
