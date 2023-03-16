@@ -34,6 +34,9 @@ class FormManager {
     private $action_tags = [];
     private $invalid_response;
 
+
+    private $form_action_tags = [];         // Action tags for the first field in the form
+
     private $invalid_response_message;  // TODO: Rename-- do we need this?  This is the message we give to people with an invalid response
 
     const VALID_ENUMERATED_FIELD_TYPES = [
@@ -104,12 +107,19 @@ class FormManager {
 
         // Loop through each field on the form until we find our context
         $found=false;
+        $first_field = true;    // Variable to tell if it is the first field of the form (where from-level action tags go)
         foreach($this->dict as $field_name => $dd) {
             // Start on the first field of the form if not already set
             if (empty($this->start_field)) $this->start_field = $field_name;
 
             // Mark true if we find the 'starting field' for our scan
             if (!$found && $this->start_field == $field_name) $found=true;
+
+            // Parse out action tags for form-level properties on first field
+            if ($first_field) {
+                $this->form_action_tags = $this->parseActionTags($dd["field_annotation"]);
+                $first_field = false;
+            }
 
             // If we haven't found the starting place, then skip to the next field
             if (!$found) continue;
@@ -122,9 +132,8 @@ class FormManager {
                 break;
             }
 
-            // Parse out action tags
-            $action_tags = $this->parseActionTags($dd["field_annotation"]);
-            // $this->module->emDebug("Action Tags for $field_name", $action_tags);
+            // If this isn't the first field, then we still need to parse the action tags
+            if (!$first_field) $action_tags = $this->parseActionTags($dd["field_annotation"]);
 
             // Skip any fields that are hidden-survey
             if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
@@ -232,9 +241,57 @@ class FormManager {
         return array_merge($this->getMessages(), [ $this->getQuestionLabel()]);
     }
 
+    /**
+     * Get the reminder message
+     * @return string
+     */
+    public function getReminderMessage() {
+        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MESSAGE);
+    }
+
+    public function getReminderTime() {
+        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_TIME);
+    }
+
+    public function getReminderMaxCount() {
+        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MAX_COUNT);
+    }
+
+    public function getExpiryMessage() {
+        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_MESSAGE);
+    }
+
+    public function getExpiryTime() {
+        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_TIME);
+    }
 
 
     /** HELPERS **/
+
+    /**
+     * Return the action tag value or null if not specified
+     * @param $action_tags
+     * @param $tag
+     * @return mixed|null
+     */
+    private function parseActionTagValue($action_tags, $tag) {
+        $result = null;
+        if (isset($action_tags[$tag])) {
+            $val = json_decode($action_tags[$tag]['params_json']);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $this->module->emDebug("Setting $tag to $val");
+                $result = $val;
+            } else {
+                $this->module->emDebug("Error parsing $tag", $action_tags[$tag]);
+            }
+        }
+        return $result;
+    }
+
+
+
+
+
 
     /**
      * Build a invalid response message
