@@ -43,6 +43,14 @@
             }).catch(function (err) {
                 console.log("Error", err);
             })
+        },
+
+        deleteConversations: function() {
+            module.ajax('deleteConversations').then(function (response) {
+                console.log("RESPONSE", response);
+            }).catch(function (err) {
+                console.log("Error", err);
+            })
         }
 
 
