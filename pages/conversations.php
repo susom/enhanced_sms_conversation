@@ -4,18 +4,10 @@ namespace Stanford\EnhancedSMSConversation;
 /** @var EnhancedSMSConversation $module */
 
 // TODO: Make a list of all conversations
+
 $module->injectJSMO();
 
-
-
-
-
-
-echo "FOO";
-
-
 ?>
-
 <table id="example" class="display" style="width:100%">
     <thead>
         <tr>
@@ -25,19 +17,33 @@ echo "FOO";
             <th>Reminder TS</th>
             <th>Expiry TS</th>
             <th>Number</th>
+            <th>Status</th>
             <th>Current Field</th>
             <th>Last Response TS</th>
         </tr>
     </thead>
 </table>
 
+<br/>
+
+<div>
+    <div class="btn btn-danger btn-sm" id="del_conversations">Delete All Conversations</div>
+</div>
+
 
 <script>
-
 $(document).ready(function () {
+    const module = ExternalModules.Stanford.EnhancedSMSConversation;
+
+    $('#del_conversations').bind('click', function() {
+        let result = window.confirm("Are you sure you want to delete ALL conversations?");
+        if (result) module.deleteConversations();
+        // Refresh table
+        module.getConversations();
+    });
 
 
-    ExternalModules.Stanford.EnhancedSMSConversation.getConversations();
+    module.getConversations();
 
 
 });
