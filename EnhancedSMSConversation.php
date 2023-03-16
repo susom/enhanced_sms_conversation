@@ -176,18 +176,15 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $CS->setState("ACTIVE");
 
                     // Expiry
-                    if($minutes = $FM->getExpiryTime()) {
+                    $minutes = $FM->getExpiryTime();
+                    if($minutes > 0) {
                         $ts = time() + ($minutes * 60);
                         $this->emDebug("Setting expiry time to $minutes mins in the future: " . $ts);
                         $CS->setExpiryTs($ts);
                     }
 
                     // Reminder
-                    if($minutes = $FM->getReminderTime()) {
-                        $ts = time() + ($minutes * 60);
-                        $this->emDebug("Setting reminder time to $minutes mins in the future: " . $ts);
-                        $CS->setReminderTs($ts);
-                    }
+                    $this->updateReminderTime($FM, $CS);
                 }
                 // $this->emDebug("About to create CS:", $CS);
                 $CS->save();
@@ -495,12 +492,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (empty($from_number)) {
                 throw new InboundException("Missing required `From` number in POST");
             }
+
             $record_id = $this->getRecordIdByCellNumber($from_number);
-
-            // TODO: Log inbound message with number and record_id.  Anything else?
-
             if (empty($record_id)) {
-                // REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
                 throw new InboundException("Inbound message from $from_number cannot be matched with record in project");
             }
 
@@ -510,6 +504,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             $this->emDebug("[$record_id] Inbound response: $body");
+
+            // TODO: Log inbound message with number and record_id.  Anything else?
 
             // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
@@ -582,20 +578,23 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (empty($current_field)) {
                 // If we do not have a current field, then something has gone wrong and we should be ending the survey
                 $CS->setState('ERROR');
-                $CS->addNote('Missing required current_field state.  Check change logs for details');
+                $CS->addNote('Missing required current_field state on inbound reply.  Check change logs for details');
                 $this->emError("Invalid Conversation State", $CS);
                 $CS->Save();
 
                 $TM->sendTwilioMessage($cell_number, "We're sorry - but something went wrong on our end (#" . $CS->getId() . ")");
+                // TODO: Move this error message to a config?
                 throw new Exception("Something went wrong with " . $CS->getId() . " - Invalid conversation state");
             }
 
             // Update Timestamps
-            $CS->setReminderTs();
             $CS->setLastResponseTs();
 
             // Get FormManager to get validation and response info.
             $FM = new FormManager($this, $CS->getInstrument(), $current_field, $record_id, $event_id, $this->getProjectId());
+
+            // Update Reminder Time
+            $this->updateReminderTime($FM, $CS);
 
             // Check the participant response and try to confirm it is a valid response
             if (false !== $response = $FM->validateResponse($inbound_body)) {
@@ -636,19 +635,20 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     if (empty($current_field)) {
                         // We have reached the end of the survey
                         $CS->setState('COMPLETE');
-                        // TODO: Do we display the end-of-survey message?
                     } else {
                         // Update to the new current_field
                         $CS->setCurrentField($current_field);
                     }
                 } else {
+                    // Save unsuccessful
+
                     // Error path during save - so we don't advance the current field
                     $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors'], $FM->getFieldDict());
-                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $CS->getEventId(),$this->getProjectId());
+                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",
+                        $record_id, $CS->getEventId(),$this->getProjectId());
 
                     // Since we are not validating the min/max, using REDCap save to validate and warn?
                     // $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
-
 
                     // Repeat the question without advancing the current_field (TODO: He may not want the question label repeated or instructions here?
                     $invalid_response = $FM->getInvalidResponse();
@@ -675,6 +675,33 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             REDCap::logEvent("Received text outside of conversation", "Text from $cell_number as $inbound_body ignored because there were no open surveys/conversations - replied with $no_open_conversation_message","",$record_id);
         }
     }
+
+
+    /**
+     * Schedules or clears the reminder timestamp
+     * @param FormManager $FM
+     * @param ConversationState $CS
+     * @return void
+     */
+    private function updateReminderTime($FM, $CS) {
+        $reminders_sent = $CS->getReminderCount();
+        $max_count = $FM->getReminderMaxCount();
+
+        if($max_count > 0 && $reminders_sent < $max_count) {
+            // We are configured for reminders
+            $minutes = $FM->getReminderTime();
+            if ($minutes > 0) {
+                $ts = time() + ($minutes * 60);
+                $this->emDebug("Reminder update: $reminders_sent of $max_count sent.  Updating next reminder to $minutes mins in the future: " . $ts);
+                $CS->setReminderTs($ts);
+            }
+        } else {
+            // Clear the reminder time if set
+            $CS->setReminderTs();
+            $this->emDebug("Clearing reminder ts for CS#" . $CS->getId());
+        }
+    }
+
 
     public function saveResponseToREDCap($project_id, $record_id, $field_name, $event_id, $response) {
         $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
@@ -829,7 +856,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $TM = $this->getTwilioManager($project_id);
             $this->emDebug("[CRON] PID#" . $TM->getProjectId());   // TP-2787
 
-            // Set the PID (but not really sure this is being used)
+            // Set the PID (but not really sure how/where this is being used)
             $_GET['pid'] = $project_id;
 
             // Record the timestamp for reminders / expiration
@@ -839,6 +866,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             foreach (ConversationState::getActiveConversationsNeedingAttention($this, $project_id, $timestamp) as $CS) {
                 /** @var $CS ConversationState **/
                 $this->emDebug("Processing Needed Action for ID: ". $CS->getId());
+
+                $FM = new FormManager($this, $CS->getInstrument(),$CS->getCurrentField(),$CS->getRecordId(), $CS->getEventId(), $project_id, $CS->getInstance());
+
                 if ($CS->getExpiryTs() < $timestamp ) {
                     // CS has expired
                     if ($timestamp - $CS->getLastResponseTs() <= self::LAST_RESPONSE_EXPIRY_DELAY_SEC) {
@@ -848,47 +878,36 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Expire it!
                         $CS->setState('EXPIRED');
 
-                        // TODO: Replace with function to lookup expiration method based on instrument and config.json
-                        if ($CS->getInstrument()=='thursday') {
-                            $expiration_message =  $this->getProjectSetting('thur-expiry-text', $project_id);
-                        } else {
-                            $expiration_message =  $this->getProjectSetting('sun-expiry-text', $project_id);
-                        }
-
-                        $to_number = $CS->getCellNumber();
-                        $result = $TM->sendTwilioMessage($to_number,$expiration_message);
-                        $this->emDebug("Result of expiration message", $result);
-
-                        \REDCap::logEvent("Expired Conversation " . $CS->getId(), "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+                        // Send Expiration Message
+                        if ($expiration_message = $FM->getExpiryMessage()) {
+                            $to_number = $CS->getCellNumber();
+                            $result = $TM->sendTwilioMessage($to_number,$expiration_message);
+                            $this->emDebug("Result of expiration message", $result);
+                        };
+                        \REDCap::logEvent("Expired Conversation " . $CS->getId(), $expiration_message,"",$CS->getRecordId(),$CS->getEventId(), $project_id);
                     }
                 } elseif($CS->getReminderTs() < $timestamp) {
-                    // Time to send a reminder
-                    $reminder_test_warning = $this->getProjectSetting('default-reminder-text', $project_id);
-                    $FM = new FormManager($this, $CS->getInstrument(), $CS->getCurrentField(), $CS->getRecordId(), $CS->getEventId(), $project_id);
+                    // Time to send a reminder - a reminder should only be scheduled IF the count was correct, so we
+                    // should NOT have to re-checking the reminder count here.
+                    // Block for debug purposes only
+                        $reminders_sent = $CS->getReminderCount();
+                        $max_count = $FM->getReminderMaxCount();
+                        $this->emDebug("About to send reminder $reminders_sent of $max_count");
 
-
-                    // $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());
-                    // $active_label = $FM->getActiveQuestion($current_step, true);     // label only
-                    // $active_variable = $FM->getActiveQuestion($current_step);              // field_name (dquant)
-                    //
-                    // $instructions = $FM->getFieldInstruction($active_variable);             // Text Yes or No
-
-                    // TODO: Standardize on space or CR for multiple lines in a single text...
+                    $reminder_test_warning = $FM->getReminderMessage();
                     $outbound_sms = implode("\n", array_filter([
                         $reminder_test_warning,
                         $FM->getQuestionLabel(),
-                        $FM->getInstructions()]
-                    ));
+                        //$FM->getInstructions()
+                    ]));
                     $result = $TM->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
                     $this->emDebug("Send reminder message", $result);
                     REDCap::logEvent("Reminder sent for " . $CS->getCurrentField() . " (#" . $CS->getId() . ")",
                         "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+                    $CS->incrementReminderCount();
 
-                    $currentReminder = $CS->getReminderTs();
-                    $newReminder = $CS->getExpiryTs() + 600;    // Just add some time to ensure the reminder doesn't go off again
-                    $this->emDebug("Cron updating #" . $CS->getId() . " reminder from $currentReminder to $newReminder");
-                    $CS->setReminderTs($newReminder);
-                    $this->emDebug("CS Reminder: " . $CS->getReminderTs());
+                    // Should we schedule another reminder or clear the current one?
+                    $this->updateReminderTime($FM,$CS);
                 } else {
                     $this->emDebug("This shouldn't happen", $timestamp, $CS);
                 }
