@@ -78,15 +78,15 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // We determine the project/record/etc from a complex helper object
         $MC = new MessageContext($this);
-        $mc_context = $MC->getContextAsArray();
-        $this->emDebug("MC (" . PAGE . ") => " . json_encode($mc_context));
-
-        $source     = $mc_context['source'];
-        $project_id = $mc_context['project_id'];
-        $record_id  = $mc_context['record_id'];
-        $event_id   = $mc_context['event_id'];
-        $instrument = $mc_context['instrument'];
-        $survey_id  = $mc_context['survey_id'];
+        $this->emDebug("MC (" . PAGE . ") => " . json_encode($MC->getContextAsArray()));
+        $source     = $MC->source;
+        $source_id  = $MC->source_id;
+        $project_id = $MC->project_id;
+        $record_id  = $MC->record_id;
+        $instance   = $MC->instance ?? 1;
+        $event_id   = $MC->event_id;
+        $instrument = $MC->instrument;
+        $survey_id  = $MC->survey_id;
 
         try {
             $errors = [];
@@ -123,9 +123,12 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
 
         try {
-            // If this is an instrument survey - then clear out any older surveys
+
+            // For Alert and Notifications messages using ESMS there is currently no instrument
+            // so we just send the SMS - we do not initiate a conversation.
+            // If you wanted to initiate conversations from Alerts in the future, we would have to add some method
+            // to parse the event and instrument name from the alert and set those in context.
             if (!$instrument && $source == 'Alert') {
-                // This is an ALERT message -- let's just send it.  No need to create a conversation state
                 $TM = $this->getTwilioManager($project_id);
                 $msg = strip_tags($message);
                 $TM->sendTwilioMessage($cell_number, $msg);
@@ -133,10 +136,18 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 REDCap::logEvent("ESMS Alert Sent", $msg,"",$record_id,$event_id,$project_id);
             } elseif (!empty($instrument)) {
 
+                //5. Clear out any existing states for this record in the state table
+                if ($CS = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
+                    $id = $CS->getId();
+                    $this->emDebug("Closing duplicate conversation #$id for $cell_number / Record " . $CS->getRecordId());
+                    $CS->setState('EXPIRED');
+                    $CS->addNote("Closing to make room for new survey with $instrument on event $event_id");
+                    $CS->save();
+                }
+
                 //6. get the first sms to send
                 $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id);
                 $TM = $this->getTwilioManager($project_id);
-                // TODO: Do we want to do a first-time orientation or just build that into the survey?
                 $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
                 $current_field = $FM->getCurrentField();
 
@@ -148,7 +159,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     "record"        => $record_id,
                     "instrument"    => $instrument,
                     "event_id"      => $event_id,
-                    "instance"      => $mc_context['instance'] ?? 1,
+                    "survey_id"     => $survey_id,
+                    "instance"      => $instance,
                     "cell_number"   => $cell_number,
                     "current_field" => $current_field
                 ];
@@ -157,14 +169,25 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                 if (empty($current_field)) {
                     // Survey is complete on creation - was only descriptive messages
-                    $this->emDebug("Setting Expired");
+                    $this->emDebug("Setting survey to complete on creation - was only descriptive fields");
                     $CS->setState("COMPLETE");
-                    // TODO: Maybe add complete method that updates survey timestamps,since it can happen from two locations
-                    // either here or during normal inbound processing...
+                    $this->setSurveyFormComplete($instrument,$record_id, $event_id,$instance,$project_id);
                 } else {
                     $CS->setState("ACTIVE");
-                    $CS->setExpiryTs();
-                    $CS->setReminderTs();
+
+                    // Expiry
+                    if($minutes = $FM->getExpiryTime()) {
+                        $ts = time() + ($minutes * 60);
+                        $this->emDebug("Setting expiry time to $minutes mins in the future: " . $ts);
+                        $CS->setExpiryTs($ts);
+                    }
+
+                    // Reminder
+                    if($minutes = $FM->getReminderTime()) {
+                        $ts = time() + ($minutes * 60);
+                        $this->emDebug("Setting reminder time to $minutes mins in the future: " . $ts);
+                        $CS->setReminderTs($ts);
+                    }
                 }
                 // $this->emDebug("About to create CS:", $CS);
                 $CS->save();
@@ -174,13 +197,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $this->emError("Not sure how we ended up here:", func_get_args());
             }
 
-            // Cancel sending the REDCap Email
-            return false;
-
         } catch (Exception $e) {
             $this->emError("Exception in REDCap Email: " . $e->getMessage());
         }
-
+        // Cancel sending the REDCap Email
+        return false;
     }
 
 
@@ -227,16 +248,41 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
 
 
+    public function setSurveyFormComplete($instrument, $record_id, $event_id, $instance = 1, $project_id = null) {
+        if (is_null($project_id)) $project_id = $this->getProjectId();
+
+        // Get survey_id from instrument name
+        $sql = "select survey_id from redcap_surveys where project_id = ? and form_name = ?";
+        $q = $this->query($sql,[$project_id, $instrument]);
+        $survey_id = $q->fetch_row()[0];
+
+        // Make sure form_complete is set to 2
+        $data = [ $record_id => [ $event_id => [ $instrument . "_complete" => 2 ] ] ];
+        $params = [
+            'data'=>$data,
+            'project_id'=>$project_id
+        ];
+        $result = REDCap::saveData($params);
+        if (!empty($result['errors'])) {
+            $this->emDebug("Error setting form status to 2", $params, $result);
+        }
+
+        // Set survey timestamps
+        $this->setSurveyTimestamp($survey_id,$event_id,$record_id,$instance,'completion_time');
+        $this->emDebug("Updated $survey_id to complete: " . json_encode($result));
+    }
+
+
     /**
      * Get the completion timestamp if it exists
      *
      * @param int $survey_id
-     * @param string $record
+     * @param string $record_id
      * @param int $instance
      * @param string $stage completion_time
      * @return string | false
      */
-    public function getSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time") {
+    public function getSurveyTimestamp($survey_id, $event_id, $record_id, $instance, $stage = "completion_time") {
         //TODO: TEST
         $stage = strtolower($stage);
         if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
@@ -251,7 +297,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 and rsr.record = ?
                 and rsr.instance = ?";
         $instance = is_null($instance) ? 1 : $instance;
-        $q = $this->query($sql, [$survey_id, $event_id, $record, $instance]);
+        $q = $this->query($sql, [$survey_id, $event_id, $record_id, $instance]);
         if ($row = $q->fetch_assoc()) {
             $this->emDebug($row);
             $result = $row['completion_time'] ?? false;
@@ -270,31 +316,30 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @param int $instance
      * @param string $stage
      * @param string $datetime
-     * @return void
      */
     public function setSurveyTimestamp($survey_id, $event_id, $record, $instance, $stage = "completion_time", $datetime = null) {
         //TODO: TEST
         $stage = strtolower($stage);
         if (!in_array($stage, self::VALID_SURVEY_TIMESTAMP_STAGES)) {
             $this->emError("Invalid stage: $stage");
-            return false;
-        }
-        if (is_null($datetime)) {
-            $datetime = date("Y-m-d H:i:s");
         } else {
-            $datetime = date("Y-m-d H:i:s", strtotime($datetime));
-        }
+            if (is_null($datetime)) {
+                $datetime = date("Y-m-d H:i:s");
+            } else {
+                $datetime = date("Y-m-d H:i:s", strtotime($datetime));
+            }
 
-        $sql = "update redcap_surveys_response rsr
+            $sql = "update redcap_surveys_response rsr
             set rsr." . $stage . " = ?
             join redcap_surveys_participants rsp on rsp.participant_id = rsr.participant_id
             where   rsp.survey_id = ?
                 and rsp.event_id = ?
                 and rsr.record = ?
                 and rsr.instance = ?";
-        $instance = is_null($instance) ? 1 : $instance;
-        $q = $this->query($sql, [$datetime, $survey_id, $event_id, $record, $instance]);
-        $this->emDebug($q);
+            $instance = is_null($instance) ? 1 : $instance;
+            $q = $this->query($sql, [$datetime, $survey_id, $event_id, $record, $instance]);
+            $this->emDebug($q);
+        }
     }
 
 
@@ -771,7 +816,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function cronScanConversationState( $cronParameters ) {
         if ($this->getSystemSetting('ignore-cron')) {
-            return;
+            return "The \"{$cronParameters['cron_description']}\" cron job was skipped as it is deactivated on the system EM settings.";
         }
 
         $originalPid = $_GET['pid'];
