@@ -40,15 +40,15 @@ use \Project;
 class MessageContext {
     private $module;
 
-    private $source;
-    private $source_id;
-    private $project_id;
-    private $record_id;
-    private $event_id;
-    private $instance;
-    private $event_name;
-    private $instrument;
-    private $survey_id;
+    public $source;
+    public $source_id;
+    public $project_id;
+    public $record_id;
+    public $event_id;
+    public $instance;
+    public $event_name;
+    public $instrument;
+    public $survey_id;
 
     const VALID_KEYS = [
         'source','source_id','project_id','record_id','event_id',
