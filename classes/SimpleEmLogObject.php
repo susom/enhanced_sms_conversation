@@ -208,7 +208,7 @@ class SimpleEmLogObject
             // if($k=="project_id") $this->module->emDebug("$k PARAMETER EXISTS");
             $value = $this->object_parameters[$k];
         } else {
-            $this->module->emDebug("Unable to identify requested value by key $k");
+            //$this->module->emDebug("Unable to identify requested value by key $k");
             $value = null;
         }
         return $value;

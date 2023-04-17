@@ -27,15 +27,15 @@ class FormManager {
     private $start_field;
     private $current_field;                 // This is the current field that should be saved to the conversation
     private $next_field;                    // This is the next field in the dictionary
-    private $descriptive_messages = [];     // These are text messages to be sent
+    private $descriptive_messages = [];     // These are text messages to be sent from descriptive fields, one message per value
     private $current_question;              // This is the active question label
-    private $instructions;                  // This is how to complete the question (is choices for enum)
-    private $choices;                       // This is an array of the valid choices
-    private $action_tags = [];
+    private $instructions;                  // This is how to complete the question (if enum or text w/ validation)
+    private $choices;                       // This is an array of the valid choices for validation
+
     private $invalid_response;
 
-
-    private $form_action_tags = [];         // Action tags for the first field in the form
+    private $form_action_tags = [];         // Action tags for the first field in the form - they are loaded always
+    private $field_action_tags = [];
 
     private $invalid_response_message;  // TODO: Rename-- do we need this?  This is the message we give to people with an invalid response
 
@@ -132,10 +132,11 @@ class FormManager {
                 break;
             }
 
-            // If this isn't the first field, then we still need to parse the action tags
-            if (!$first_field) $action_tags = $this->parseActionTags($dd["field_annotation"]);
+            // Set the action tags for the current field
+            $this->field_action_tags = $first_field ? $this->form_action_tags : $this->parseActionTags($dd["field_annotation"]);
 
-            // Skip any fields that are hidden-survey
+            // Skip any fields that are hidden or hidden-survey
+            if (isset($action_tags["@HIDDEN"])) continue;
             if (isset($action_tags["@HIDDEN-SURVEY"])) continue;
 
             // Skip fields that have @ESMS-IGNORE
@@ -166,32 +167,19 @@ class FormManager {
                 $this->descriptive_messages[] = $this->pipe($dd['field_label']);
             } else {
                 // This is the next question field
-                $this->current_field    = $field_name;
-                $this->current_question = $this->pipe($dd['field_label']);
-                $this->action_tags      = $action_tags;
+                $this->current_field     = $field_name;
+                $this->current_question  = $this->pipe($dd['field_label']);
+                $this->module->emDebug("FM: Set current_field = $field_name");
 
-                $this->module->emDebug("Setting current_field to $field_name");
-
-                if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
-                    list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
-                } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
-                    $this->choices = [];
-                    // MOVING TO INVALID RESPONSE ERRORS
-                    // if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-                    //     $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'];
-                    // } elseif (!empty($text_validation_max)) {
-                    //     $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'];
-                    // } elseif (!empty($text_validation_min)) {
-                    //     $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'];
-                    // }
-                    // TODO: Support things like date fields...
-                } else {
-                    $this->module->emDebug($dd["field_type"] . " is something else", $dd);
-                    throw new \Exception("Unable to parse this dd type:", $dd);
-                }
+                // Set the choices and instructions properties
+                list($this->choices, $this->instructions) = $this->parseChoicesAndInstructions($dd);
             }
         }
     }
+
+
+
+
 
 
     /** GETTERS */
@@ -207,7 +195,7 @@ class FormManager {
         return $this->start_field;
     }
 
-    public function getMessages() {
+    public function getDescriptiveMessages() {
         return $this->descriptive_messages;
     }
 
@@ -223,9 +211,18 @@ class FormManager {
         return $this->instructions ?? '';
     }
 
-    public function getInvalidResponse() {
-        return $this->getInvalidResponseMessage();
-        // return $this->invalid_response;
+    public function getInvalidResponseMessage() {
+        // First, try the field:
+        $message = $this->parseActionTagValue($this->field_action_tags, $this->module::ACTION_TAG_INVALID_RESPONSE);
+        if (is_null($message)) {
+            // Then try the form
+            $message = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_INVALID_RESPONSE);
+        }
+        if (is_null($message)) {
+            // Then goto the EM Settings
+            $message = $this->module->getProjectSetting('invalid-response-text');
+        }
+        return $message ?? '';
     }
 
     public function getFieldDict() {
@@ -237,16 +234,41 @@ class FormManager {
      * Combine previous section headers, descriptive fields, and the actual question into an array of messages
      * @return array{string}
      */
-    public function getArrayOfMessagesAndQuestion() {
-        return array_merge($this->getMessages(), [ $this->getQuestionLabel()]);
+    public function getNewQuestionMessages() {
+        return array_filter(
+            array_merge(
+                $this->getDescriptiveMessages(),
+                [ $this->getQuestionSms() ]
+            )
+        );
     }
 
     /**
-     * Get the reminder message
+     * Based on the project settings, include or do not include the instructions in a new question
+     * @return string
+     */
+    public function getQuestionSms() {
+        // Used when asking a new question
+        $qas = $this->module->getProjectSetting('question-asking-style');
+        if ($qas == "high") {
+            $result = $this->getQuestionLabel() . " " . $this->getInstructions();
+        } else {
+            $result = $this->getQuestionLabel();
+        }
+        return $result;
+    }
+
+
+    /**
+     * Get the reminder message from action tag or use default
      * @return string
      */
     public function getReminderMessage() {
-        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MESSAGE);
+        $message = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MESSAGE);
+        if (is_null($message)) {
+            $message = $this->module->getProjectSetting('default-reminder-text');
+        }
+        return $message;
     }
 
     public function getReminderTime() {
@@ -259,14 +281,25 @@ class FormManager {
     }
 
     public function getReminderMaxCount() {
-        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MAX_COUNT);
+        $count = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_REMINDER_MAX_COUNT);
+        if (is_null($count)) {
+            $count = $this->module->getProjectSetting('default-reminder-max-count');
+        }
+        return $count;
     }
 
     public function getExpiryMessage() {
-        return $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_MESSAGE);
-
+        $message = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_MESSAGE);
+        if (is_null($message)) {
+            $message = $this->module->getProjectSetting('default-expiry-text');
+        }
+        return $message;
     }
 
+    /**
+     * Return the number of minutes until expiration based on action tags or defaults
+     * @return mixed|null
+     */
     public function getExpiryTime() {
         $minutes = $this->parseActionTagValue($this->form_action_tags, $this->module::ACTION_TAG_EXPIRY_TIME);
         if (is_null($minutes)) {
@@ -299,38 +332,6 @@ class FormManager {
     }
 
 
-
-
-
-
-    /**
-     * Build a invalid response message
-     * @return string $response
-     */
-    private function getInvalidResponseMessage() {
-
-        // Set the invalid response
-        if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
-            // [@ESMS-INVALID-RESPONSE] => Array
-            // (
-            //     [params] => "We don't understand. Please text Yes or No"
-            //     [params_json] => "We don't understand. Please text Yes or No"
-            //     [params_text] =>
-            // )
-            $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
-        } elseif (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-            $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'] . ".\n";
-        } elseif (!empty($text_validation_max)) {
-            $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'] . ".\n";
-        } elseif (!empty($text_validation_min)) {
-            $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'] . ".\n";
-        } else {
-            $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
-        }
-        return $response;
-    }
-
-
     /**
      * Pipe a string for the current record
      * @param $text
@@ -346,29 +347,56 @@ class FormManager {
 
     /**
      * Parse out the enumerated choices and instructions for them
+     * returns an array with two members:
+     *   The first is an array of valid choices: [ "a" => "Apple", "b" => "Banana" ]
+     *   The second is a string version of the choice_instructions: "[a] for Apple, [b] for Banana"
      * @param $dd
      * @return array
      */
     private function parseChoicesAndInstructions($dd)
     {
-        $choices = $dd['select_choices_or_calculations'];
-        if ($dd['field_type'] == "yesno") {
-            $choices = "1, Yes | 0, No";
-        } elseif ($dd['field_type'] == "truefalse") {
-            $choices = "1, True | 0, False";
-        }
-
-        // Blow up the choices string into an array
         $arr_choices = [];
-        $arr_instructions = [];
-        $choice_pairs = explode("|", $choices);
-        foreach ($choice_pairs as $pair) {
-            list($k, $v) = array_map('trim', explode(",", $pair, 2));
-            $choice_label = $this->pipe($v);
-            $arr_choices[$k] = $choice_label;
-            $arr_instructions[] = "[$k] $choice_label";
+        $instructions = "";
+
+        if (in_array($dd["field_type"], self::VALID_ENUMERATED_FIELD_TYPES)) {
+            $choices = $dd['select_choices_or_calculations'];
+            if ($dd['field_type'] == "yesno") {
+                $choices = "1, Yes | 0, No";
+            } elseif ($dd['field_type'] == "truefalse") {
+                $choices = "1, True | 0, False";
+            }
+
+            // Blow up the choices string into an array
+            $arr_instructions = [];
+            $choice_pairs = explode("|", $choices);
+            foreach ($choice_pairs as $pair) {
+                list($k, $v) = array_map('trim', explode(",", $pair, 2));
+                $choice_label = $this->pipe($v);
+                $arr_choices[$k] = $choice_label;
+                $arr_instructions[] = "'$k' for $choice_label";
+            }
+            $arr_ins_count = count($arr_instructions);
+            if ($arr_ins_count == 2) {
+                $instructions = implode(" or ", $arr_instructions);
+            } elseif ($arr_ins_count > 10) {
+                // Convert a long list into a smaller set of example values, e.g. :  AL for Alabama, AK for Alaska, ..., WI for Wisconsin, WY for Wyoming
+                $subset = array_merge(array_slice($arr_instructions, 0, 2), ["..."], array_slice($arr_instructions, $arr_ins_count - 2, 2));
+                $instructions = implode(", ", $subset);
+            } else {
+                $instructions = implode(", ", array_slice($arr_instructions, 0, $arr_ins_count - 1)) . ", or" . $arr_instructions[$arr_ins_count];
+            }
+        } elseif (in_array($dd["field_type"], self::VALID_TEXT_TYPES)) {
+            if (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+                $instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'] . ".\n";
+            } elseif (!empty($text_validation_max)) {
+                $instructions = "Please text a value less than or equal to " . $dd['text_validation_max'] . ".\n";
+            } elseif (!empty($text_validation_min)) {
+                $instructions = "Please text a greater than or equal to " . $dd['text_validation_min'] . ".\n";
+            } else {
+                // TODO: Add date validation, etc...
+            }
+            $arr_choices = [];
         }
-        $instructions = implode(", ", $arr_instructions);
         return [$arr_choices, $instructions];
     }
 
@@ -459,6 +487,14 @@ class FormManager {
      */
     private function parseActionTags($string, $tag_only = null)
     {
+        // EXAMPLE OUTPUT ARRAY:
+        // [@ESMS-INVALID-RESPONSE] => Array
+        // (
+        //     [params] => "We don't understand. Please text Yes or No"
+        //     [params_json] => "We don't understand. Please text Yes or No"
+        //     [params_text] =>
+        // )
+
         $re = "/  (?(DEFINE)
      (?<number>    -? (?= [1-9]|0(?!\\d) ) \\d+ (\\.\\d+)? ([eE] [+-]? \\d+)? )
      (?<boolean>   true | false | null )

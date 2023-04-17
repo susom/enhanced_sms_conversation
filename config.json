@@ -124,9 +124,43 @@
         },
         {
             "key": "customizations",
-            "name": "<b><u>Set or customize the reminder and expiration messages send to survey respondents</u></b><br>You can override the default values below on a per-survey basis by adding the action-tags specified on the <b>FIRST FIELD</b> of a given survey form",
+            "name": "<div class='btn btn-sm btn-success'>Communication Customization and Preferences</div><br><i>These are default values.  Many of them can be changed on a per-survey or per-field basis. Form-level tags must be applied to the FIRST FORM in the survey</i>",
             "type": "descriptive"
         },
+        {
+            "key": "question-asking-style",
+            "name": "<b>Question Style</b><br>When first asking a survey question, this module can read the question label only, or, for enumerated fields, it can also include the instructions.  Example instructions for a radio/select/dropdown field might be: <code>`1` for Yes or `2` for No</cod>.  See README for more details",
+            "required": true,
+            "default": "low",
+            "type": "dropdown",
+            "choices": [
+                { "value": "low", "name": "Question Label only (default)" },
+                { "value": "high", "name": "Question Label + Instructions" }
+            ]
+        },
+        {
+            "key": "invalid-response-style",
+            "name": "<b>Invalid Response Style</b><br>When someone replies with an invalid response you can control how the module replies.  See README for more details",
+            "required": true,
+            "default": "medium",
+            "type": "dropdown",
+            "choices": [
+                { "value": "low", "name": "Invalid Response Message only" },
+                { "value": "medium", "name": "Invalid Response Message + Question Label (default)" },
+                { "value": "high", "name": "Invalid Response Message + Question Label + Instructions (if radio/select/dropdown or validated text)" }
+            ]
+        },        {
+            "key": "reminder-style",
+            "name": "<b>Reminder Response Style</b><br>When someone fails to respond and a reminder is sent, you can control what content is sent in the message.  See README for more details",
+            "required": true,
+            "default": "medium",
+            "type": "dropdown",
+            "choices": [
+                { "value": "low", "name": "Reminder message only" },
+                { "value": "medium", "name": "Reminder message + Question Label (default)" }
+            ]
+        },
+
         {
             "key": "default-reminder-text",
             "name": "<b>Default Reminder Message</b><br>Send this reminder text after the time below has elapsed.<br><i>Override with:</i> <code>@ESMS-REMINDER-MESSAGE=\"My Reminder\"</code>",
@@ -141,7 +175,7 @@
         },
         {
             "key": "default-reminder-max-count",
-            "name": "<b>Default Maximum Number of Reminders</b><br>Maximum number of reminders for a given conversation.<br><i>Override with:</i> <code>@ESMS-REMINDER-MAX-COUNT=\"0\"</code>",
+            "name": "<b>Default Maximum Number of Reminders</b><br>Maximum number of reminders for a given conversation.  0 means no reminders.<br><i>Override with:</i> <code>@ESMS-REMINDER-MAX-COUNT=\"2\"</code>",
             "required": true,
             "default" : "1",
             "type": "text"
@@ -159,73 +193,14 @@
             "type": "text"
         },
         {
-            "key": "form-custom-settings",
-            "name": "<b>Customize these settings on a per-form basis</b>",
-            "required": false,
-            "type": "sub_settings",
-            "repeatable": true,
-            "sub_settings": [
-                {
-                    "key": "form-name",
-                    "name": "<b>Form</b><br/>Customize the settings for this form",
-                    "required": true,
-                    "type": "form-list"
-                },
-                {
-                    "key": "reminder-text",
-                    "name": "<b>Form Reminder Message</b><br><i>(optional)</i>If there is no response for the number of minutes specified above, this reminder message will be sent.  Leave blank for default",
-                    "required": false,
-                    "type": "text"
-                },
-                {
-                    "key": "reminder-minutes",
-                    "name": "<b>Minutes to Reminder Text</b><br>Send a reminder if no reply in a conversation for this many minutes.  Set to 0 for no reminders",
-                    "required": true,
-                    "type": "text"
-                },
-                {
-                    "key": "reminder-max-count",
-                    "name": "<b>Maximum Number of Reminders</b><br>Maximum number of reminders for a conversation.  Leave blank for default",
-                    "required": true,
-                    "type": "text"
-                },
-                {
-                    "key": "expiry-text",
-                    "name": "<b>Form Expiry Message</b><br><i>(optional)</i>This text will be sent if a conversation is expired.  Leave blank for default",
-                    "required": false,
-                    "type": "text"
-                },
-                {
-                    "key": "expiry-minutes",
-                    "name": "<b>Minutes to Expire Conversation</b><br>Expire conversation after this number of minutes.  Set to 0 to never expire",
-                    "required": true,
-                    "type": "text"
-                }
-            ]
-        },
-
-
-        {
-            "key": "thur-expiry-text",
-            "name": "<b>Thursday Expiry Text</b><br>After the allowed expiry time for the Thursday survey has elapsed, this message will be sent to the user.",
-            "required": true,
-            "type": "text"
-        },
-        {
-            "key": "sun-expiry-text",
-            "name": "<b>Sunday Expiry Text</b><br>After the allowed expiry time for the Sunday survey has elapsed, this message will be sent to the user.",
-            "required": true,
-            "type": "text"
-        },
-        {
-            "key": "nonsense-text-warning",
-            "name": "<b>Default Nonsense Text Warning</b><br><br>Upon receipt of a text that does not match an expected response, this message will be included in the reply message in this format. <br> <THIS MESSAGE><CURRENT QUESTION INSTRUCTIONS><br>This value can be overridden on a per-question basis using the actiontag, <i>e.g.</i> <code>@ESMS-INVALID-RESPONSE=\"You must enter a number between 5 and 10\"</code>",
+            "key": "invalid-response-text",
+            "name": "<b>Default Invalid Response Message</b><br><br>Upon receipt of a text that does not match an expected response, this optional message can be included in the reply.  This value can be overridden on a form or per-question basis using the actiontag, <i>e.g.</i> <code>@ESMS-INVALID-RESPONSE=\"You must enter a number between 5 and 10\"</code>",
             "required": true,
             "type": "text"
         },
         {
             "key": "no-open-conversation-message",
-            "name": "<b>No Open Conversation Message</b><br><br><i>(optional)</i> If a participant sends a SMS message when no conversation/survey is open, this message, if defined, will be sent in reply.  A good value might be: <code>No surveys are currently available.  Please wait until your next invitation or contact the study team.  Your responses are not actively monitored.</code>",
+            "name": "<b>No Open Conversation Message</b><br><br><i>(optional)</i> If a participant sends a SMS message when no conversation/survey is open, this message, if defined, will be sent in reply.  A good value might be: <code>All surveys are closed or expired at this time.  Please wait until your next invitation or contact the study team if you have questions.  Your message is NOT actively monitored by the study team.</code>",
             "required": false,
             "type": "text"
         },

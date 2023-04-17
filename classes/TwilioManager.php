@@ -16,10 +16,16 @@ class TwilioManager {
     /** @var EnhancedSMSConversation $module */
     private $module;
 
-    private $sid;
-    private $token;
+    private $account_sid;
+    private $account_token;
     private $twilio_number;
     private $project_id;
+
+    // Per message attributes
+    public $response;
+    public $to;
+    public $body;
+    public $sid;    // Message sid
 
     private $TwilioClient;
 
@@ -27,11 +33,11 @@ class TwilioManager {
         $this->module = $module;
         $this->project_id = $project_id;
 
-        $this->sid = $module->getProjectSetting('twilio-sid', $this->project_id);
-        $this->token = $module->getProjectSetting('twilio-token',$this->project_id);
+        $this->account_sid = $module->getProjectSetting('twilio-sid', $this->project_id);
+        $this->account_token = $module->getProjectSetting('twilio-token',$this->project_id);
         $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$this->project_id));
 
-        if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new ConfigSetupException("Missing Twilio setup - see external module config");
+        if (empty($this->account_sid) | empty( $this->account_token) | empty( $this->twilio_number)) throw new ConfigSetupException("Missing Twilio setup - see external module config");
     }
 
 
@@ -158,14 +164,18 @@ class TwilioManager {
         }
 
         try {
-            $sms = $this->getTwilioClient()->messages->create(
+            $this->to = $to;
+            $this->body = $message;
+
+            $response = $this->getTwilioClient()->messages->create(
                 $to,
                 [
                     'from' => $this->twilio_number,
                     'body' => $message
                 ]
             );
-            $this->module->emDebug("SEND SMS RESPONSE: ",$sms->sid);
+            $this->module->emDebug("Outbound SID: ",$response->sid);
+            $this->response = $response;
 
             // Save a copy of the outgoing message
             $MH = new MessageHistory($this->module);
@@ -173,17 +183,14 @@ class TwilioManager {
                 'from_number' => $this->twilio_number,
                 'to_number' => $to,
                 'body' => $message,
-                'response' => json_encode([
-                    "errorMessage" => $sms->errorMessage,
-                    "errorCode" => $sms->errorCode,
-                    "sid"   => $sms->sid
-                                          ])
+                'response' => json_encode($response->toArray()),
+                'sid' => $response->sid
             ]);
             $MH->save();
 
 
-            if (!empty($sms->error_code) || !empty($sms->error_message)) {
-                $error_message = "Error #" . $sms->errorCode . " - " . $sms->errorMessage;
+            if (!empty($response->error_code) || !empty($response->error_message)) {
+                $error_message = "Error #" . $response->errorCode . " - " . $response->errorMessage;
                 $this->module->emError($error_message);
                 throw new Exception ($error_message);
             }
@@ -192,10 +199,8 @@ class TwilioManager {
         } catch (\Exception $e) {
             REDCap::logEvent("Error sending Twilio message from number $to_number", $e->getMessage());
             $this->module->emError("Exception when sending sms: " . $e->getMessage());
-
             return false;
         }
-        return true;
     }
 
 
@@ -205,7 +210,7 @@ class TwilioManager {
      */
     public function getTwilioClient() {
         if (empty($this->TwilioClient)) {
-            $this->TwilioClient = new Client($this->sid, $this->token);
+            $this->TwilioClient = new Client($this->account_sid, $this->account_token);
         }
         return $this->TwilioClient;
     }

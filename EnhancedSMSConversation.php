@@ -148,7 +148,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 //6. get the first sms to send
                 $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id);
                 $TM = $this->getTwilioManager($project_id);
-                $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
+                $TM->sendBulkTwilioMessages($cell_number, $FM->getNewQuestionMessages());
                 $current_field = $FM->getCurrentField();
 
                 //7. Set the state table
@@ -183,7 +183,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $CS->setExpiryTs($ts);
                     }
 
-                    // Reminder
+                    // Reminder Settings
                     $this->updateReminderTime($FM, $CS);
                 }
                 // $this->emDebug("About to create CS:", $CS);
@@ -597,6 +597,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $this->updateReminderTime($FM, $CS);
 
             // Check the participant response and try to confirm it is a valid response
+            $is_invalid = false;
             if (false !== $response = $FM->validateResponse($inbound_body)) {
                 // POTENTIALLY VALID RESPONSE
                 if ($response !== $inbound_body) {
@@ -620,7 +621,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
 
                         // And send next round of SMS messages if any
-                        $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getArrayOfMessagesAndQuestion());
+                        $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getNewQuestionMessages());
 
                         $current_field = $FM->getCurrentField();
 
@@ -641,30 +642,43 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     }
                 } else {
                     // Save unsuccessful
+                    $is_invalid = true;
 
                     // Error path during save - so we don't advance the current field
                     $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors'], $FM->getFieldDict());
-                    REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",
-                        $record_id, $CS->getEventId(),$this->getProjectId());
+                    REDCap::logEvent("Error saving response:  $response","Response in wrong format.","", $record_id, $CS->getEventId(),$this->getProjectId());
 
-                    // Since we are not validating the min/max, using REDCap save to validate and warn?
-                    // $this->emDebug("There were errors while saving $response to $record_id", $result['errors']);
-
-                    // Repeat the question without advancing the current_field (TODO: He may not want the question label repeated or instructions here?
-                    $invalid_response = $FM->getInvalidResponse();
-                    $outbound_sms = implode("\n", array_filter([$invalid_response, $FM->getQuestionLabel()]));
-                    $TM->sendTwilioMessage($cell_number, $outbound_sms);
+                    // TODO: IF we can parse out this error, we can use a FM->addInstruction method to append this to future instructions?
                 }
             } else {
                 // False here means this is an invalid response for an enumerated field
-                // $this->emDebug("Response of $inbound_body was not valid for $current_field");
-                $invalid_response = $FM->getInvalidResponse();
-                $outbound_sms = implode("\n", array_filter([$FM->getInstructions(), $invalid_response]));
-                // $nonsense_text_reply = $nonsense_text_warning . " " . $FM->getFieldInstruction($current_field);
-                $TM->sendTwilioMessage($cell_number, $outbound_sms);
+                $is_invalid = true;
             }
+
             $CS->save();
             $this->emDebug("CS #". $CS->getId() . " updated!");
+
+            // We have an invalid response - let's reply based on
+            if ($is_invalid) {
+                $irs = $this->getProjectSetting('invalid-response-style');
+                $messages[] = $FM->getInvalidResponseMessage();
+                if ($irs == "low") {
+                    // Invalid Response Only:
+                } else {
+                    // Add the question:
+                    $messages[] = $FM->getQuestionLabel();
+
+                    if ($irs == "high" ) {
+                        // Add the instructions
+                        $messages[] = $FM->getInstructions();
+                    }
+                }
+
+                // Currently sending as a single text -- could change to multiple...
+                $outbound_sms = implode("\n", array_filter($messages));
+                $TM->sendTwilioMessage($cell_number, $outbound_sms);
+            }
+
         } else {
             // No ACTIVE conversations were found
             $no_open_conversation_message = $this->getProjectSetting('no-open-conversation-message', $this->getProjectId());
@@ -675,6 +689,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             REDCap::logEvent("Received text outside of conversation", "Text from $cell_number as $inbound_body ignored because there were no open surveys/conversations - replied with $no_open_conversation_message","",$record_id);
         }
     }
+
 
 
     /**
@@ -850,7 +865,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // Attempt to use the single thread/multi-project cron strategy
         foreach($this->getProjectsWithModuleEnabled() as $project_id){
-            $this->emDebug("Running cron on pid $project_id");
+            // $this->emDebug("Running cron on pid $project_id");
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);
@@ -894,16 +909,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         $max_count = $FM->getReminderMaxCount();
                         $this->emDebug("About to send reminder $reminders_sent of $max_count");
 
-                    $reminder_test_warning = $FM->getReminderMessage();
-                    $outbound_sms = implode("\n", array_filter([
-                        $reminder_test_warning,
-                        $FM->getQuestionLabel(),
-                        //$FM->getInstructions()
-                    ]));
+                    $rs = $this->getProjectSetting('reminder-style', $project_id);
+                    $rm[] = $FM->getReminderMessage();
+                    if ($rs == "medium") {
+                        $rm[] = $FM->getQuestionLabel();
+                    }
+                    $outbound_sms = implode("\n", array_filter($rm));
                     $result = $TM->sendTwilioMessage($CS->getCellNumber(),$outbound_sms);
-                    $this->emDebug("Send reminder message", $result);
+                    $this->emDebug("Sent reminder message", $result);
                     REDCap::logEvent("Reminder sent for " . $CS->getCurrentField() . " (#" . $CS->getId() . ")",
-                        "","",$CS->getRecordId(),$CS->getEventId(), $project_id);
+                        $outbound_sms,"",$CS->getRecordId(),$CS->getEventId(), $project_id);
                     $CS->incrementReminderCount();
 
                     // Should we schedule another reminder or clear the current one?

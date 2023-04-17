@@ -89,16 +89,86 @@ $config = $module->getConfig();
             </div>
         </main>
 
-        <div class="card" style="">
-            <div class="card-body">
-                <h5 class="card-title">Twilio Inbound URL</h5>
-<!--                <h6 class="card-subtitle mb-2 text-muted">Card subtitle</h6>-->
-                <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,true) ?></code></p>
-                <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,false) ?></code></p>
-<!--                <a href="#" class="card-link">--><?php //= $module->getUrl("pages/inbound.php",true,true) ?><!--</a>-->
+        <div class="container">
+            <div class="card" style="">
+                <p class="card-body">
+                    <h5 class="card-title">Twilio Inbound URL</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">Set the Twilio Inbound Webhook for <?= $module->getProjectSetting('twilio-number') ?> to the following url:</h6>
+                    <p class="card-text">
+                        <?php
+                            $TM = $module->getTwilioManager($module->getProjectId());
+                        ?>
+                        Your Twilio number is currently configured as: <code><?=$TM->getNumberDetails()->smsUrl ?></code>
+                    </p>
+
+                    <ul class="nav nav-tabs role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <a class="nav-link active" id="api_url_tab" aria-current="page" data-bs-toggle="tab" data-bs-target="#api_url" href="#">API-Endpoint</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="em_url_tab" aria-current="page" data-bs-toggle="tab" data-bs-target="#em_url" href="#">API-Endpoint</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="ngrok_url_tab" aria-current="page" data-bs-toggle="tab" data-bs-target="#ngrok_url" href="#">Local NGROK Endpoint</a>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="inboudUrlTabs">
+                        <div class="tab-pane fade show active" id="api_url" role="tabpanel" aria-labelledby="api_url_tab">
+                            <code><?= $module->getUrl("pages/inbound.php",true,true) ?></code>
+                        </div>
+                        <div class="tab-pane fade" id="em_url" role="tabpanel" aria-labelledby="em_url_tab">
+                            <code><?= $module->getUrl("pages/inbound.php",true,false) ?></code>
+                        </div>
+                        <div class="tab-pane fade" id="ngrok_url" role="tabpanel" aria-labelledby="ngrok_url_tab">
+                            <p>TODO: Allow you to paste in your ngrok url and have it give you the correct local-dev</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+        <div class="container">
+            // Render Active Conversations
+        </div>
 <?php
+
+
+
+Echo "Foo";
+
+
+
+exit();
+
+function getNumberDetail() {
+    global $module;
+    // Get the phone number details
+    $TM = $module->getTwilioManager($module->getProjectId());
+    $number = $TM->getNumberDetails();
+    return $number;
+}
+
+$CS = new ConversationState($module);
+
+$ACS = ConversationState::queryObjects($module,'ConversationState'); //,'state = ?', ['ACTIVE']);
+echo "<div>Found " . count($ACS) . " Conversation States</div>";
+$cols = [
+    "log_id" => "Log ID",
+    "timestamp" => "Created",
+    "ui_id" => "User ID",
+    "record" => "Record",
+    "instrument" => "Instrument",
+    "state" => "State",
+    "notes" => "Notes",
+    "reminder_ts", "Reminder",
+    "expiry_ts", "Expiry"
+];
+foreach ($ACS as $CS) {
+    var_dump($CS);
+}
+
+
+exit();
+
 
 
 
@@ -114,49 +184,49 @@ $record = "34";
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 $next_field = $FM->getNextField();
 $FM = new FormManager($module, 'survey_1', $next_field, $record, $event_id,81);
 var_dump("Started at [" . $FM->getStartField() . "], AT [" .  $FM->getCurrentField() . "] next is [" . $FM->getNextField() . "]",
     $FM->getQuestionLabel(),$FM->getInstructions(),
-    "Messages",$FM->getMessages(), $FM->getChoices());
+    "Messages",$FM->getDescriptiveMessages(), $FM->getChoices());
 
 exit();
 

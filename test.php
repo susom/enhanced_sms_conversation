@@ -10,6 +10,10 @@ echo "TESTING : Hello from $module->PREFIX";
 
 $project_id = $module->getProjectId();
 
+
+
+
+
 $url = $module->getUrl('pages/inbound.php', true, true);
 echo "<br><br>This is the TRAM innbound link: <br>".$url;
 
@@ -51,7 +55,7 @@ if (false) {
 
         $module->emDebug("getting instrustions for $current_field");
 
-        $nonsense_test_warning = $module->getProjectSetting('nonsense-text-warning', $project_id);
+        $nonsense_test_warning = $module->getProjectSetting('invalid-response-text', $project_id);
         $instructions = $fm->getFieldInstruction($current_field);
         $label = $fm->getFieldLabel($current_field);
 
@@ -109,7 +113,7 @@ if (false) {
             }
         } elseif($CS->getReminderTs() > $timestamp) {
             // Send a reminder
-            $reminder_test_warning = $module->getProjectSetting('reminder-text-warning', $project_id);
+            $reminder_test_warning = $module->getProjectSetting('default-reminder-text', $project_id);
             $current_field = $CS->getCurrentField();
             $FM = new FormManager($module,$CS->getInstrument(),$CS->getEventId(),$project_id);
             $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());
