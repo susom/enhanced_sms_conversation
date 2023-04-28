@@ -24,12 +24,12 @@ $module->emDebug("INBOUND: $url");
  * TEST6: CHECK TWILIO SENDING
  */
 
-if (true) {
+if (false) {
     $module->cronScanConversationState([]);
 }
 
 //TEST11: ValidateResponse
-if (false) {
+if (true) {
     $record_id = 1;
     $form = "thursday";
     $event = "week_1_sms_arm_1";
@@ -37,26 +37,29 @@ if (false) {
     $event_id = REDCap::getEventIdFromUniqueEvent($event);
     //$current_field = 'wplan';
 
-    $cell_number = '+14152357577';
+    $cell_number = '+16505295666';
     $record_id = 1;
 
-    $fm = new FormManager($module, $form, $event, $project_id);
+    $fm = new FormManager($module, $form, $current_field, $record_id, $event, $project_id);
     $tm = $module->getTwilioManager($project_id);
 
-    $response = $fm->validateResponse($current_field, 'Yes');
+    $response = $fm->validateResponse('34');
+
 
     $result = $module->saveResponseToREDCap($project_id,$record_id, $current_field, $event_id, $response);
-    if ($result['errors']) {
-        $module->emDebug("There were errors while saving $response to $record_id", $result['errors']);
+    if ($result['errors'] || $result['warnings']) {
+        $module->emDebug("There were errors while saving $response to $record_id", $result['errors'], $result['warnings'], );
 
-        $module->emDebug("getting instrustions for $current_field");
+        $module->emDebug("getting instructions for $current_field");
 
         $nonsense_test_warning = $module->getProjectSetting('nonsense-text-warning', $project_id);
-        $instructions = $fm->getFieldInstruction($current_field);
-        $label = $fm->getFieldLabel($current_field);
+        //$instructions = $fm->getFieldInstruction($current_field);
+        $invalid_response = $fm->getInvalidResponse();
+
+        //$label = $fm->getFieldLabel($current_field);
 
         //$active_variable = $fm->getActiveQuestion($current_step);
-        $outbound_sms = implode("\n", array_filter([$nonsense_test_warning, $instructions]));
+        $outbound_sms = implode("\n", array_filter([$invalid_response, $fm->getQuestionLabel()]));
         $tm->sendTwilioMessage($cell_number, $outbound_sms);
 
         //\REDCap::logEvent("Nonsense warning  for $current_field", $result['errors'],$record_id,$event_id, $project_id);

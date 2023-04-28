@@ -241,6 +241,12 @@ class FormManager {
      * @return string $response
      */
     private function getInvalidResponseMessage() {
+        //xxyjl current_field is null?? using start_field
+        $dd_min = $this->dict[$this->start_field]['text_validation_min'];
+        $dd_max = $this->dict[$this->start_field]['text_validation_max'];
+
+        $foo = empty($dd_min);
+        $bar = empty($dd_max);
 
         // Set the invalid response
         if (isset($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE])) {
@@ -251,12 +257,14 @@ class FormManager {
             //     [params_text] =>
             // )
             $response = json_decode($this->action_tags[$this->module::ACTION_TAG_INVALID_RESPONSE]['params_json']);
-        } elseif (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
-            $this->instructions = "Please text a value between " . $dd['text_validation_min'] . " and " . $dd['text_validation_max'] . ".\n";
+//        xxyjl $dd is not set?
+//        } elseif (!empty($dd['text_validation_max']) && !empty($dd['text_validation_min'])) {
+        } elseif (isset($dd_min) && !empty($dd_max)) {
+            $response = "We don't understand. Please text a value between " .$dd_min . " and " . $dd_max . ".\n";
         } elseif (!empty($text_validation_max)) {
-            $this->instructions = "Please text a value less than or equal to " . $dd['text_validation_max'] . ".\n";
+            $response = "Please text a value less than or equal to " . $dd_max . ".\n";
         } elseif (!empty($text_validation_min)) {
-            $this->instructions = "Please text a greater than or equal to " . $dd['text_validation_min'] . ".\n";
+            $response = "Please text a greater than or equal to " . $dd_min. ".\n";
         } else {
             $response = $this->module->getProjectSetting('nonsense-text-warning', $this->project_id);
         }
