@@ -443,7 +443,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
 
             $body = trim($_POST['Body'] ?? '');
-            if (empty($body)) {
+            //xxyjl: are 0s being considered empty here? try isset?
+            if (isset($body)) {
                 throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
             }
 

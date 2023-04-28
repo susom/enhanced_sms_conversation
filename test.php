@@ -24,12 +24,25 @@ $module->emDebug("INBOUND: $url");
  * TEST6: CHECK TWILIO SENDING
  */
 
+if (true) {
+    $body = '0';
+    if (empty($body)) {
+        $module->emDebug("$body is empty");
+    }
+
+    if (isset($body)) {
+        $module->emDebug("$body is isset");
+    }
+
+
+}
+
 if (false) {
     $module->cronScanConversationState([]);
 }
 
 //TEST11: ValidateResponse
-if (true) {
+if (false) {
     $record_id = 1;
     $form = "thursday";
     $event = "week_1_sms_arm_1";
@@ -43,8 +56,13 @@ if (true) {
     $fm = new FormManager($module, $form, $current_field, $record_id, $event, $project_id);
     $tm = $module->getTwilioManager($project_id);
 
-    $response = $fm->validateResponse('34');
+    $response = $fm->validateResponse(0);
 
+    if (false !== $response) {
+        $module->emDebug("not false");
+    } else {
+        $module->emDebug(" false");
+    }
 
     $result = $module->saveResponseToREDCap($project_id,$record_id, $current_field, $event_id, $response);
     if ($result['errors'] || $result['warnings']) {
