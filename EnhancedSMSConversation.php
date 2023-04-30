@@ -444,11 +444,11 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             $body = trim($_POST['Body'] ?? '');
             //xxyjl: are 0s being considered empty here? try isset?
-            if (isset($body)) {
+            $this->emDebug("[$record_id] Inbound response: $body");
+
+            if (!isset($body)) {
                 throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
             }
-
-            $this->emDebug("[$record_id] Inbound response: $body");
 
             // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
             $opt_msg_check = preg_replace( '/[\W]/', '', strtolower($body));
