@@ -58,7 +58,7 @@ class MessageHistory extends SimpleEmLogObject
      * @return int
      * @throws Exception
      */
-    public static function logNewMessage($module, $to_number, $from_number, $body, $direction, $cs_id, $record = null, $project_id)
+    public static function logNewMessage($module, $to_number, $from_number, $body, $direction, $cs_id, $record, $project_id)
     {
         $MH = new MessageHistory($module);
         $MH->setValues([
