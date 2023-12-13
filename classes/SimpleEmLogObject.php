@@ -52,7 +52,7 @@ class SimpleEmLogObject
     public $last_error;
 
     const LOG_CHANGES_TYPE = 'SELO_CHANGE_LOG'; // This will be the 'message' attribute for change logs related to this object
-    const LOG_CHANGES = true;
+    const LOG_CHANGES = false;
     public $change_log = [];
 
     const MAIN_COLUMNS = ['log_id', 'timestamp', 'ui_id','ip','project_id','record_id', 'message'];
@@ -230,6 +230,7 @@ class SimpleEmLogObject
      * @throws Exception
      */
     public function save() {
+        $this->module->emDebug("About to save");
         if ($this->log_id) {
             // For saving existing log_ids
             // $this->module->emDebug("DIRTY IN SAVE: ", $this->dirty_parameters, $this->dirty_columns);

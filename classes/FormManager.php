@@ -4,6 +4,7 @@ namespace Stanford\EnhancedSMSConversation;
 
 use REDCap;
 use Piping;
+use Project;
 
 /**
  * The FormManager class exists to help us parse out a data dictionary for conversion to SMS
@@ -14,6 +15,8 @@ class FormManager {
 
     /** @var EnhancedSMSConversation $module */
     private $module;
+
+    private $Proj;
 
     private $form;
     private $record_id;
@@ -61,8 +64,12 @@ class FormManager {
         $this->project_id  = $project_id;
         $this->instance    = $instance;
 
+        $this->Proj        = new Project($project_id);
+
         // Create Parse the metadata for this form
         $this->buildContext();
+
+        $this->module->emDebug("New Form Manager: Form: $this->form  - Start Field: $this->start_field - Instance: $this->instance");
     }
 
     /**
@@ -143,7 +150,7 @@ class FormManager {
 
             // Check to see if we skip question due to branching logic
             if (!empty($dd['branching_logic']) && $this->skipDueToBranching($dd['branching_logic'])) {
-                $this->module->emDebug("Skipping $field_name for record $this->record_id due to branching logic");
+                // $this->module->emDebug("Skipping $field_name for record $this->record_id in instance $this->instance due to branching logic");
                 continue;
             }
 
@@ -237,6 +244,59 @@ class FormManager {
     /** HELPERS **/
 
     /**
+     * Is the form repeating
+     * @return bool
+     */
+    public function isRepeatingForm() {
+        return $this->Proj->isRepeatingForm($this->event_id, $this->form);
+    }
+
+
+    /**
+     * @param $project_id
+     * @param $record_id
+     * @param $field_name
+     * @param $event_id
+     * @param $response
+     * @param $instance
+     * @return mixed
+     */
+    public function saveResponseToREDCap($current_field, $response) {
+        if ($this->isRepeatingForm()) {
+            $data       = [
+                $this->record_id => [
+                    'repeat_instances' => [
+                        $this->event_id => [
+                            $this->form => [
+                                $this->instance => [
+                                    $current_field => $response
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+        } else {
+            // Create standard data payload
+            $data       = [
+                $this->record_id => [
+                    $this->event_id => [
+                        $current_field => $response ]
+                ]
+            ];
+        }
+
+        $result     = REDCap::saveData([
+            'project_id' => $this->project_id,
+            'data'       => $data
+        ]);
+
+        $this->module->emDebug("[$this->record_id] Saved $current_field for instance $this->instance as " . json_encode($result), $data);
+        return $result;
+    }
+
+
+    /**
      * Build a invalid response message
      * @return string $response
      */
@@ -322,9 +382,9 @@ class FormManager {
      */
     private function skipDueToBranching($branching_logic) {
         if (!empty($branching_logic)) {
-            $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
+            $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id, $this->instance);
             // if result is true, then do not skip.  If result is false, the skip.
-            $this->module->emDebug("Evaluating " . json_encode($branching_logic) . " for record $this->record_id - " . ($result ? "TRUE": "FALSE"));
+            // $this->module->emDebug("Evaluating " . json_encode($branching_logic) . " for record $this->record_id in instance $this->instance as " . ($result ? "TRUE": "FALSE"));
             $skip = !$result;
         } else {
             $skip = false;

@@ -76,7 +76,7 @@
             "cron_name": "esms_scan_conversation_state",
             "cron_description": "This cron will run once a minute to check whether a reminder or expiry needs to go out to any existing conversations",
             "method": "cronScanConversationState",
-            "cron_frequency": "600",
+            "cron_frequency": "60",
             "cron_max_run_time": "3600"
         }
     ],
@@ -118,7 +118,7 @@
         },
         {
             "key": "default-conversation-reminder-minutes",
-            "name": "<b>Reminder Text</b><br><i>(optional)</i> If set to a value, conversations will be sent a reminder after this number of minutes without a response.  The counter restarts after each participant response.",
+            "name": "<b>Reminder Delay</b><br><i>(optional)</i> If set to a value, conversations will sent a reminder message after this number of minutes without a response.  The counter restarts after each participant response.",
             "required": false,
             "type": "text"
         },

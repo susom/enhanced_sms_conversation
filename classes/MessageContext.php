@@ -169,7 +169,7 @@ class MessageContext {
                         $p->setAccessible(true);
                         $val = $p->getValue($o) ?? ($mProp == 'instance' ? 1 : null);
                         if (!empty($val) && $this->$cProp != $val) {
-                            $module->emDebug("Setting $cProp to $val from Message Object");
+                            // $module->emDebug("Setting $cProp to $val from Message Object");
                             $this->$cProp = $val;
                         }
                     }

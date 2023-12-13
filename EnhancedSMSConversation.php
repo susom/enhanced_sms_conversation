@@ -47,12 +47,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
     const OPT_IN_KEYWORDS = ['start'];
 
-    public function __construct() {
-        parent::__construct();
-        // Other code to run when object is instantiated
-    }
-
-
     /**
      * Hijacking redcap_email hook to send texts rather than the project's ASI.
      * Convention is to add @ESMS to the subject line that this is to be hijacked.
@@ -87,6 +81,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $event_id   = $mc_context['event_id'];
         $instrument = $mc_context['instrument'];
         $survey_id  = $mc_context['survey_id'];
+        $instance   = $mc_context['instance'] ?? 1;
 
         try {
             $errors = [];
@@ -132,9 +127,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // TODO: Do we need to log in redcap_log_event here?
                 REDCap::logEvent("ESMS Alert Sent", $msg,"",$record_id,$event_id,$project_id);
             } elseif (!empty($instrument)) {
-
+                //xdebug_break();
                 //6. get the first sms to send
-                $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id);
+                $FM = new FormManager($this, $instrument, '', $record_id, $event_id, $project_id, $instance);
                 $TM = $this->getTwilioManager($project_id);
                 // TODO: Do we want to do a first-time orientation or just build that into the survey?
                 $TM->sendBulkTwilioMessages($cell_number, $FM->getArrayOfMessagesAndQuestion());
@@ -148,16 +143,16 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     "record"        => $record_id,
                     "instrument"    => $instrument,
                     "event_id"      => $event_id,
-                    "instance"      => $mc_context['instance'] ?? 1,
+                    "instance"      => $instance,
                     "cell_number"   => $cell_number,
                     "current_field" => $current_field
                 ];
                 $CS->setValues($params);
-                $this->emDebug("Current Field", $current_field);
+                $this->emDebug("Instrument $instrument - current field: " . json_encode($current_field));
 
                 if (empty($current_field)) {
                     // Survey is complete on creation - was only descriptive messages
-                    $this->emDebug("Setting Expired");
+                    // $this->emDebug("Setting Expired");
                     $CS->setState("COMPLETE");
                     // TODO: Maybe add complete method that updates survey timestamps,since it can happen from two locations
                     // either here or during normal inbound processing...
@@ -166,7 +161,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $CS->setExpiryTs();
                     $CS->setReminderTs();
                 }
-                // $this->emDebug("About to create CS:", $CS);
+                $this->emDebug("About to create CS:" . $CS->getId());
                 $CS->save();
                 $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
 
@@ -456,7 +451,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             if (empty($record_id)) {
                 // REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
-                throw new InboundException("Inbound message from $from_number cannot be matched with record in project");
+                throw new InboundException("Inbound message from $from_number cannot be matched with record in project " . $this->getProjectId());
             }
 
             $body = trim($_POST['Body'] ?? '');
@@ -523,13 +518,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function handleReply($record_id, $cell_number, $inbound_body) {
-
         // Load up the TM
         $TM = $this->getTwilioManager($this->getProjectId());
 
         // Find ACTIVE conversations for this number
         if ($CS = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
-            $this->emDebug("Found CS#". $CS->getId() . " for Record $record_id / $cell_number at field [" . $CS->getCurrentField() . "]");
+            $this->emDebug("Found CS#". $CS->getId() . " for Record $record_id / " . $CS->getInstance() .
+                " / $cell_number at field [" . $CS->getCurrentField() . "]");
 
             // according to state table this is the current question
             $current_field = $CS->getCurrentField();
@@ -551,7 +546,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $CS->setLastResponseTs();
 
             // Get FormManager to get validation and response info.
-            $FM = new FormManager($this, $CS->getInstrument(), $current_field, $record_id, $event_id, $this->getProjectId());
+            $FM = new FormManager($this, $CS->getInstrument(), $current_field, $record_id, $event_id, $this->getProjectId(), $CS->getInstance());
 
             // Check the participant response and try to confirm it is a valid response
             if (false !== $response = $FM->validateResponse($inbound_body)) {
@@ -561,7 +556,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 }
 
                 // Save the response to redcap?
-                $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response);
+                // $result = $this->saveResponseToRedcap($this->getProjectId(), $record_id, $current_field, $event_id, $response, $CS->getInstance());
+                $result = $FM->saveResponseToREDCap($current_field, $response);
 
                 // TODO: Check for save validation warnings on text fields
                 if (!empty($result['warnings']) || !empty($result['errors'])) {
@@ -571,15 +567,20 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $saveSuccessful = empty($result['errors']);
                 if ($saveSuccessful) {
 
+                    $this->emDebug("Saved $current_field");
+
                     // Check if there is a field after the current question
                     if ($next_field = $FM->getNextField()) {
+                        $this->emDebug("After save, the next field is $next_field");
+
                         // Let's load the next field
-                        $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId());
+                        $FM = new FormManager($this, $CS->getInstrument(), $next_field, $record_id, $event_id, $this->getProjectId(), $CS->getInstance());
 
                         // And send next round of SMS messages if any
                         $TM->sendBulkTwilioMessages($CS->getCellNumber(), $FM->getArrayOfMessagesAndQuestion());
 
                         $current_field = $FM->getCurrentField();
+                        $this->emDebug("New Form Manager Current Field: " . $current_field);
 
                         // If the last field was just descriptive, we could be done here.  We can tell by seeing if
                         // the Form Manager has a current_field or not
@@ -632,15 +633,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         }
     }
 
-    public function saveResponseToREDCap($project_id, $record_id, $field_name, $event_id, $response) {
-        $data       = [ $record_id => [ $event_id => [ $field_name => $response ] ] ];
-        $result     = REDCap::saveData([
-            'project_id' => $project_id,
-            'data'       => $data
-        ]);
-        $this->emDebug("[$record_id] Saved: " . json_encode($result));
-        return $result;
-    }
 
     /**
      * Format a phone number
@@ -722,8 +714,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 'project_id' => $project_id
             ];
 
-            $this->emDebug("Phone Lookup Params:" , $params);
+            // $this->emDebug("Phone Lookup Params:" , $params);
             $results = REDCap::getData($params);
+            $this->emDebug("Phone Lookup Result:" . json_encode($results));
 
             if (count($results) > 1) {
                 $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)) . " -- taking first value");
@@ -820,7 +813,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 } elseif($CS->getReminderTs() < $timestamp) {
                     // Time to send a reminder
                     $reminder_test_warning = $this->getProjectSetting('default-reminder-text', $project_id);
-                    $FM = new FormManager($this, $CS->getInstrument(), $CS->getCurrentField(), $CS->getRecordId(), $CS->getEventId(), $project_id);
+                    $FM = new FormManager($this, $CS->getInstrument(), $CS->getCurrentField(), $CS->getRecordId(), $CS->getEventId(), $project_id, $CS->getInstance());
 
 
                     // $current_step = $FM->getCurrentFormStep($current_field,$CS->getRecordId());

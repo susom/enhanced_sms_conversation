@@ -165,7 +165,7 @@ class TwilioManager {
                     'body' => $message
                 ]
             );
-            $this->module->emDebug("SEND SMS RESPONSE: ",$sms->sid);
+            $this->module->emDebug("SMS Response: $sms->sid");
 
             // Save a copy of the outgoing message
             $MH = new MessageHistory($this->module);

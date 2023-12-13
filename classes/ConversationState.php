@@ -70,7 +70,8 @@ class ConversationState extends SimpleEmLogObject
     }
 
     /**
-     * Sets the reminder_ts value if supplied, otherwise use the default-conversation-reminder-minutes
+     * Sets the reminder_ts value if supplied, otherwise use the default-conversation-reminder-minutes.  If you set
+     * to zero, no reminder will be set.
      * @param $project_id
      * @param $ts
      * @return void
@@ -78,11 +79,16 @@ class ConversationState extends SimpleEmLogObject
     public function setReminderTs($ts = null) {
         $project_id = $this->getValue('project_id');
         if (empty($ts)) {
-            $default_reminder_min = $this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id);
-            $ts = time() + ($default_reminder_min * 60);
+            $default_reminder_min = intval($this->module->getProjectSetting('default-conversation-reminder-minutes', $project_id));
+            if($default_reminder_min > 0) {
+                $ts = time() + ($default_reminder_min * 60);
+            }
         }
-        $this->module->emDebug("Setting Reminder Ts to $ts");
-        $this->setValue('reminder_ts', $ts);
+
+        if (!empty($ts)) {
+            $this->module->emDebug("Setting Reminder Ts to $ts");
+            $this->setValue('reminder_ts', $ts);
+        }
     }
 
 
@@ -222,7 +228,7 @@ class ConversationState extends SimpleEmLogObject
         $objs = self::queryObjects($module, $type, $filter_clause, [$state, $cell_number]);
 
         $count = count($objs);
-        $module->emDebug("Found $count hits with $filter_clause");
+        $module->emDebug("Found $count hits of type $type with filter $filter_clause from state $state and cell $cell_number");
         if ($count == 0) {
             // None found, return false;
             $result = false;

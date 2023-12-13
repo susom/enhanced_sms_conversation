@@ -26,7 +26,7 @@ $c = 3;
 global $proj;
 
 $event_id = 167;
-$FM = new FormManager($module, 'survey_1', 167,81);
+$FM = new FormManager($module, 'survey_1', 167,81, $event_id, $project_id);
 //var_dump($FM);
 
 $record = "34";
