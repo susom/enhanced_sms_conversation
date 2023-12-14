@@ -1,9 +1,13 @@
 <?php
 namespace Stanford\EnhancedSMSConversation;
 
-/** @var EnhancedSMSConversation $module */
+use REDCap;
 
+/** @var EnhancedSMSConversation $module */
 $config = $module->getConfig();
+
+/** @set \Project $Proj */
+global $Proj;
 
 // Replace this with your module code
 ?>
@@ -91,11 +95,59 @@ $config = $module->getConfig();
 
         <div class="card" style="">
             <div class="card-body">
-                <h5 class="card-title">Twilio Inbound URL</h5>
+                <h5 class="card-title">Twilio Inbound URLs</h5>
 <!--                <h6 class="card-subtitle mb-2 text-muted">Card subtitle</h6>-->
                 <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,true) ?></code></p>
                 <p class="card-text"><code><?= $module->getUrl("pages/inbound.php",true,false) ?></code></p>
 <!--                <a href="#" class="card-link">--><?php //= $module->getUrl("pages/inbound.php",true,true) ?><!--</a>-->
+            </div>
+        </div>
+        <div class="card" style="">
+            <div class="card-body">
+                <h5 class="card-title">Select Record Context</h5>
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" id="basic-addon3">Record ID</span>
+                    </div>
+                    <select class="custom-select" id="selected_record_id">
+                        <?php
+                            $params = [
+                                'fields' => [ REDCap::getRecordIdField() ]
+                            ];
+                            $result = REDCap::getData($params);
+                            $record_ids=[];
+                            foreach ($result as $id => $data) {
+                                $record_ids[] = $id;
+                            }
+                            foreach($record_ids as $record) {
+                                $selected = ($record == $_GET['selected_record_id']) ? "selected" : "";
+                                echo "\n<option $selected value='$record'>$record</option>";
+                            }
+                        ?>
+                    </select>
+                </div>
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" id="basic-addon3">Event ID</span>
+                    </div>
+                    <select class="custom-select" id="selected_event_id">
+                        <?php
+                            foreach ($Proj->events as $arm_num => $arm_data) {
+                                foreach ($arm_data['events'] as $event_id => $event_data) {
+                                    $selected = ($event_id == $_GET['selected_event_id']) ? "selected" : "";
+                                    echo "\n<option $selected value='$event_id'>$event_id: " . $arm_data['name'] . " " . $event_data['descrip'] . "</option>";
+                                }
+                            }
+                        ?>
+                    </select>
+                </div>
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" id="basic-addon3">Instance ID</span>
+                    </div>
+                    <input type="text" class="form-control" id="selected_instance_id" aria-describedby="basic-addon3">
+                </div>
+                <button type="button" class="btn btn-primary" id="set_context">Set Context</button>
             </div>
         </div>
 <?php
@@ -103,8 +155,32 @@ $config = $module->getConfig();
 
 
 // Testing the metadata parser functions:
-/** @set \Project $proj */
-global $proj;
+$project_id = $module->getProjectId();
+$first_event_id = $Proj->getFirstEventIdArm(1);
+
+$branching_logic1 = "([step_prompt]>0) AND ([step_prompt] <= 2000) AND ([current-instance]='1')";
+$branching_logic2 = "([step_prompt]>0) AND ([step_prompt] <= 2000) AND ([current-instance]='1')";
+
+$event_id = $first_event_id;
+$record_id = 2;
+$repeat_instance=1;
+$repeat_form="daily";
+$result1 = REDCap::evaluateLogic($branching_logic1, $project_id, $record_id, $event_id, $repeat_instance, $repeat_form, $repeat_form);
+$result2 = REDCap::evaluateLogic($branching_logic2, $project_id, $record_id, $event_id, $repeat_instance, $repeat_form);
+
+echo "<pre>" . "\nEvent: $event_id\nRecord: $record_id\nInstance: $repeat_instance\n";
+
+echo "\nLogic: $branching_logic1\nResult: " . json_encode($result1);
+echo "\nLogic: $branching_logic2\nResult: " . json_encode($result2);
+echo "</pre>";
+
+exit();
+
+
+
+
+var_dump($project_id, $first_event_id, $Proj);
+exit();
 
 $project_id = 81;
 $event_id = 167;

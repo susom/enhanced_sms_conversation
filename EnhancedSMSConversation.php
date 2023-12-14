@@ -161,9 +161,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $CS->setExpiryTs();
                     $CS->setReminderTs();
                 }
-                $this->emDebug("About to create CS:" . $CS->getId());
+                // $this->emDebug("About to create CS:" . $CS->getId());
                 $CS->save();
-                $this->emDebug("SAVED CS#" . $CS->getId() . " - " . $CS->getState());
+                $this->emDebug("SAVED CS#" . $CS->getId() . " status " . $CS->getState());
 
             } else {
                 $this->emError("Not sure how we ended up here:", func_get_args());
@@ -772,7 +772,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // Attempt to use the single thread/multi-project cron strategy
         foreach($this->getProjectsWithModuleEnabled() as $project_id){
-            $this->emDebug("Running cron on pid $project_id");
+            // $this->emDebug("Running cron on pid $project_id");
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);
@@ -797,12 +797,13 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Expire it!
                         $CS->setState('EXPIRED');
 
-                        // TODO: Replace with function to lookup expiration method based on instrument and config.json
-                        if ($CS->getInstrument()=='thursday') {
-                            $expiration_message =  $this->getProjectSetting('thur-expiry-text', $project_id);
-                        } else {
-                            $expiration_message =  $this->getProjectSetting('sun-expiry-text', $project_id);
-                        }
+                        // // TODO: Replace with function to lookup expiration method based on instrument and config.json
+                        // if ($CS->getInstrument()=='thursday') {
+                        //     $expiration_message =  $this->getProjectSetting('thur-expiry-text', $project_id);
+                        // } else {
+                        //     $expiration_message =  $this->getProjectSetting('sun-expiry-text', $project_id);
+                        // }
+                        $expiration_message = $this->getProjectSetting('default-expiry-text', $project_id);
 
                         $to_number = $CS->getCellNumber();
                         $result = $TM->sendTwilioMessage($to_number,$expiration_message);

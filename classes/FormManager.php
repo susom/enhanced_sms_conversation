@@ -338,9 +338,12 @@ class FormManager {
      * @return string
      */
     private function pipe($text) {
+        $this->module->emDebug("About to pipe: [$text] from instance " . $this->instance . " and form " . $this->form );
         $pipe = trim(Piping::replaceVariablesInLabel($text, $this->record_id, $this->event_id, $this->instance, array(),
-            false, $this->project_id, false, $this->form));
+            false, $this->project_id, false, $this->form,
+            1,false,false,$this->form));
         $strip = trim(strip_tags($pipe));
+        $this->module->emDebug("Piped as: [$strip]");
         return $strip;
     }
 
@@ -382,9 +385,19 @@ class FormManager {
      */
     private function skipDueToBranching($branching_logic) {
         if (!empty($branching_logic)) {
-            $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id, $this->instance);
+            // $this->module->emDebug("Branching Logic Before: " . $branching_logic);
+            // $branching_logic = $this->pipe($branching_logic);
+            // $this->module->emDebug("Branching Logic After: " . $branching_logic);
+
+            if($this->isRepeatingForm()) {
+                $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id, $this->instance, $this->form, $this->form);
+            } else {
+                $result = \REDCap::evaluateLogic($branching_logic, $this->project_id, $this->record_id, $this->event_id);
+            }
             // if result is true, then do not skip.  If result is false, the skip.
-            // $this->module->emDebug("Evaluating " . json_encode($branching_logic) . " for record $this->record_id in instance $this->instance as " . ($result ? "TRUE": "FALSE"));
+            if ($result == true) {
+                $this->module->emDebug("Evaluating " . json_encode($branching_logic) . " for record $this->record_id in instance $this->instance as " . ($result ? "TRUE": "FALSE"));
+            }
             $skip = !$result;
         } else {
             $skip = false;
