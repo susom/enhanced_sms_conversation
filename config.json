@@ -141,18 +141,6 @@
             "type": "text"
         },
         {
-            "key": "thur-expiry-text",
-            "name": "<b>Thursday Expiry Text</b><br>After the allowed expiry time for the Thursday survey has elapsed, this message will be sent to the user.",
-            "required": true,
-            "type": "text"
-        },
-        {
-            "key": "sun-expiry-text",
-            "name": "<b>Sunday Expiry Text</b><br>After the allowed expiry time for the Sunday survey has elapsed, this message will be sent to the user.",
-            "required": true,
-            "type": "text"
-        },
-        {
             "key": "nonsense-text-warning",
             "name": "<b>Default Nonsense Text Warning</b><br><br>Upon receipt of a text that does not match an expected response, this message will be included in the reply message in this format. <br> <THIS MESSAGE><CURRENT QUESTION INSTRUCTIONS><br>This value can be overridden on a per-question basis using the actiontag, <i>e.g.</i> <code>@ESMS-INVALID-RESPONSE=\"You must enter a number between 5 and 10\"</code>",
             "required": true,

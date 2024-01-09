@@ -116,13 +116,6 @@ if (false) {
                 // Expire it!
                 $CS->expireConversation();
 
-                // TODO: Customize the expiration message based on survey with action-tag
-                if ($CS->getInstrument()=='thursday') {
-                    $expiration_message =  $module->getProjectSetting('thur-expiry-text', $project_id);
-                } else {
-                    $expiration_message =  $module->getProjectSetting('sun-expiry-text', $project_id);
-                }
-
                 $result = $module->getTwilioManager($project_id)->sendTwilioMessage($CS->getCellNumber(),$expiration_message);
                 $module->emDebug("Send expiration message", $result);
 

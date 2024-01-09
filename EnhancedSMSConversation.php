@@ -797,12 +797,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                         // Expire it!
                         $CS->setState('EXPIRED');
 
-                        // // TODO: Replace with function to lookup expiration method based on instrument and config.json
-                        // if ($CS->getInstrument()=='thursday') {
-                        //     $expiration_message =  $this->getProjectSetting('thur-expiry-text', $project_id);
-                        // } else {
-                        //     $expiration_message =  $this->getProjectSetting('sun-expiry-text', $project_id);
-                        // }
+                        // TODO: Replace with function to lookup expiration method based on instrument and config.json
                         $expiration_message = $this->getProjectSetting('default-expiry-text', $project_id);
 
                         $to_number = $CS->getCellNumber();
