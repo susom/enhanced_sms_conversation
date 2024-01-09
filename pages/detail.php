@@ -1,6 +1,8 @@
 <?php
 namespace Stanford\EnhancedSMSConversation;
 
+// THIS APPEARS TO BE A TESTING PAGE
+
 /** @var EnhancedSMSConversation $module */
 
 // Replace this with your module code

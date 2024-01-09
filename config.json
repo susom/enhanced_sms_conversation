@@ -32,11 +32,6 @@
     "links": {
         "project": [
             {
-                "name": "Enhanced SMS Conversation",
-                "icon": "fas fa-cog",
-                "url": "pages/detail.php"
-            },
-            {
                 "name": "ESMS Conversations",
                 "icon": "fas fa-cog",
                 "url": "pages/conversations.php",

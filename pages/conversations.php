@@ -6,17 +6,11 @@ namespace Stanford\EnhancedSMSConversation;
 // TODO: Make a list of all conversations
 $module->injectJSMO();
 
-
-
-
-
-
-echo "FOO";
-
-
 ?>
 
-<table id="example" class="display" style="width:100%">
+<div>
+
+<table id="example" class="display pr-2" style="width:100%">
     <thead>
         <tr>
             <th>LogID</th>
@@ -30,6 +24,7 @@ echo "FOO";
         </tr>
     </thead>
 </table>
+</div>
 
 
 <script>
