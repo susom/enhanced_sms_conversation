@@ -41,7 +41,7 @@
                 "name": "ESMS: Superuser Testing",
                 "superuseronly": true,
                 "icon": "fas fa-cog",
-                "url": "pages/test.php"
+                "url": "pages/superuser_test.php"
             },
             {
                 "name": "Enhanced SMS Conversation: test",

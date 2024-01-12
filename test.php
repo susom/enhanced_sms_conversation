@@ -563,3 +563,102 @@ if (false) {
 }
 
 
+
+
+
+
+/// OLD TESTING
+if (false) {
+
+    $c = 3;
+
+    ?>
+    <style>
+        pre {
+            white-space: pre-wrap;       /* css-3 */
+        }
+    </style>
+    <?php
+
+    // Testing the metadata parser functions:
+    /** @set \Project $proj */
+    global $proj;
+
+    $event_id = 167;
+    $FM = new FormManager($module, 'survey_1', 167,81, $event_id, $project_id);
+    //var_dump($FM);
+
+    $record = "34";
+    $q = $FM->setStartingField('',$record);
+    var_dump($q);
+
+    $q = $FM->setStartingField($q['current_field'], $record);
+    var_dump($q);
+
+    $nf = $FM->getNextField($q['current_field']);
+    $q = $FM->setStartingField($nf, $record);
+    var_dump($nf,$q);
+
+    $q = $FM->setStartingField($q['current_field'], $record);
+    var_dump($q['current_field'],$q);
+
+    $nf = $FM->getNextField($q['current_field']);
+    $q = $FM->setStartingField($nf, $record);
+    var_dump($nf,$q);
+
+    die();
+    $field = $q['current_field'];
+
+    echo "\n------\n";
+    $response = " nope e ";
+    $field = "yn_2";
+    $r = $FM->validateResponse($field, $response);
+    var_dump("Answer $field with $response", $r);
+
+    if (false) {
+        $CS = new ConversationState($module, "CS");
+
+        //$CS->setValue("foo","bar");
+
+        $vals = [
+            "fruit" => "apple",
+            "number" => 6503803405
+        ];
+
+        $CS->setValues($vals);
+
+        //$CS->setValue("timestamp",date("Y-m-d H:i:s") );
+
+        $r = $CS->save();
+        var_dump($r);
+        var_dump($CS);
+    }
+
+    if (false) {
+        // 1782 and 1783
+        $CS = new ConversationState($module, "CS", 1783);
+        var_dump($CS);
+        var_dump($CS->delete());
+    }
+
+    if (false) {
+        $CS = new ConversationState($module, "CS");
+        $CS->setValue("state", "ACTIVE");
+        $CS->setValue("number", "16503803405");
+        $CS->save();
+        var_dump($CS);
+    }
+
+    if (false) {
+        $o = ConversationState::getActiveConversationByNumber($module, "16503803405");
+
+        // var_dump($o);
+
+        $o->setValue('foo','bar3');
+        $o->save();
+        var_dump($o);
+
+        ConversationState::purgeChangeLogs($module,"CS",0);
+        echo "Purged";
+    }
+}
