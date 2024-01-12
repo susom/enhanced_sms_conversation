@@ -10,7 +10,7 @@ $module->injectJSMO();
 
 <div>
 
-<table id="example" class="display pr-2" style="width:100%">
+<table id="conversationTable" class="display pr-2" style="width:100%">
     <thead>
         <tr>
             <th>LogID</th>
@@ -19,11 +19,17 @@ $module->injectJSMO();
             <th>Reminder TS</th>
             <th>Expiry TS</th>
             <th>Number</th>
+            <th>State</th>
             <th>Current Field</th>
-            <th>Last Response TS</th>
+            <th>Last Response</th>
         </tr>
     </thead>
 </table>
+    <div>
+        <button id="refreshConversations" type="button" class="btn btn-sm btn-success">Refresh Conversation List</button>
+        <button id="deleteSelectedConversations" type="button" class="btn btn-sm btn-danger">Delete Selected Conversations</button>
+        <button id="deleteConversations" type="button" class="btn btn-sm btn-danger">Delete All Conversations</button>
+    </div>
 </div>
 
 
@@ -31,9 +37,25 @@ $module->injectJSMO();
 
 $(document).ready(function () {
 
-
     ExternalModules.Stanford.EnhancedSMSConversation.getConversations();
 
+    $('#conversationTable').on( 'click', 'tr', function () {
+        $(this).toggleClass('selected');
+    } );
+
+    $('#refreshConversations').click(function() {
+        ExternalModules.Stanford.EnhancedSMSConversation.refreshConversations();
+    });
+
+    $('#deleteSelectedConversations').click(function() {
+        ExternalModules.Stanford.EnhancedSMSConversation.deleteSelectedConversations();
+    });
+
+    $('#deleteConversations').click(function() {
+        if (window.confirm('Are you sure you want to delete all conversations?')) {
+            ExternalModules.Stanford.EnhancedSMSConversation.deleteConversations();
+        }
+    });
 
 });
 </script>

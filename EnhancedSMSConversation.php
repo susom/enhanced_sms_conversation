@@ -904,7 +904,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                            remlp3.value as 'cell_number',
                            remlp4.value as 'state',
                            remlp5.value as 'current_field',
-                           remlp6.value as 'last_response_ts'
+                           from_unixtime(remlp6.value, '%Y-%m-%d %H:%i:%s') as 'last_response_ts'
                     from
                         redcap_external_modules_log reml
                     left join redcap_external_modules_log_parameters remlp1 on reml.log_id = remlp1.log_id and remlp1.name='reminder_ts'
@@ -926,14 +926,21 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     ];
                 break;
             case "getConversationStates":
-
                 break;
             case "deleteConversations":
-                // Delete all conversations
-                $ids = ConversationState::queryIds($this, "ConversationState");
+                // Set the payload to all conversations if the payload is empty...
+                if (empty($payload)) {
+                    $ids = ConversationState::queryIds($this, "ConversationState");
+                } else {
+                    $ids = $payload;
+                }
+
+                // Delete conversations
+                $result=[];
                 foreach ($ids as $id) {
-                    $result = $this->removeLogs("log_id = ?", [$id]);
-                    $this->emDebug("Deleting id $id, $result");
+                    $q = $this->removeLogs("log_id = ?", [$id]);
+                    $this->emDebug("Deleting id $id, $q");
+                    $result[$id]=$q;
                 }
                 break;
             case "TestAction":

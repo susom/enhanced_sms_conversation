@@ -63,7 +63,9 @@
     ],
 
     "auth-ajax-actions": [
-        "getConversations"
+        "getConversations",
+        "deleteConversations",
+        "refreshConversations"
     ],
 
     "crons": [
