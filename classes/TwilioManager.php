@@ -133,6 +133,10 @@ class TwilioManager {
 
             // Send the message
             $result = $this->sendTwilioMessage($to_number, $message);
+
+            // Introduce a 300 ms delay to prevent messages from arriving out of order
+            usleep(300 * 1000); // Convert milliseconds to microseconds
+
             if (!$result) $errors[] = $message;
         }
         if (!empty($errors)) {
