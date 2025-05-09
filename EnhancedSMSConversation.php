@@ -13,13 +13,15 @@ require_once "classes/CustomExceptions.php";
 use \REDCap;
 use \Project;
 use \Exception;
-
+use GuzzleHttp\Client;
 class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     use emLoggerTrait;
 
     public $TwilioManager;
 
     const NUMBER_PREFIX = "NUMBER:";
+
+    public $record = null;
 
     const SUBJECT_TAG_FOR_EMAIL = "@ESMS";
     const ACTION_TAG_IGNORE_FIELD = "@ESMS-IGNORE";
@@ -654,7 +656,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             $output = "+".$output;
         } elseif ($type == "redcap") {
-            if (strlen($digits) === 11 && left($digits,1,) == "1") {
+            if (strlen($digits) === 11 && left($digits,1) == "1") {
                 // 16503803405 => 6503803405
                 $digits = mid($digits, 2, 10);
             }
@@ -950,6 +952,39 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     "user_id"=>$user_id
                 ];
                 break;
+            case "LookupPhoneNumbers":
+                $tm = $this->getTwilioManager($this->getProjectId());
+                $phone_number = $payload['phone_number'];
+                $record_id = $payload['record_id'];
+                try{
+                    $line_type_intelligence = $tm->lookupPhoneNumber($phone_number);
+                    if(!empty($line_type_intelligence)){
+                        $data[\REDCap::getRecordIdField()]= $record_id;
+                        if($this->getProjectSetting('phone-carrier-name') && $this->getProjectSetting('phone-carrier-name') != ''){
+                            $data[$this->getProjectSetting('phone-carrier-name')] = $line_type_intelligence['carrier_name'];
+                        }
+                        if($this->getProjectSetting('phone-carrier-type') && $this->getProjectSetting('phone-carrier-type') != ''){
+                            $data[$this->getProjectSetting('phone-carrier-type')] = $line_type_intelligence['type'];
+                        }
+                        $response = \REDCap::saveData($this->getProjectId(), 'json', json_encode(array($data)));
+                        if (!empty($response['errors'])) {
+                            REDCap::logEvent(implode(",", $response['errors']));
+                        }else{
+                            $result = [
+                                "success"=>true,
+                                "carrier_name"=>$line_type_intelligence['carrier_name'],
+                                "carrier_type"=>$line_type_intelligence['type'],
+                            ];
+                        }
+                    }else{
+                        REDCap::logEvent("No line_type_intelligence for phone number $phone_number and record $record_id");
+                    }
+
+                    break;
+                }catch (\Exception $e){
+
+                }
+                break;
             default:
                 // Action not defined
                 throw new Exception ("Action $action is not defined");
@@ -960,7 +995,19 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
     }
 
 
+    public function redcap_survey_page( int $project_id, string $record = NULL, string $instrument, int $event_id, int $group_id = NULL, string $survey_hash, int $response_id = NULL, int $repeat_instance = 1 )
+    {
+        // load phone_lookup page only if user wants to collect the data
+        if($this->getProjectSetting('collect-carrier-info')){
+            $this->record = $record;
+            $this->includeFile('pages/phone_lookup.php');
+        }
+    }
 
+    public function includeFile($path)
+    {
+        include_once $path;
+    }
 
 
 

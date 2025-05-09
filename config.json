@@ -24,7 +24,8 @@
 
     "permissions": [
         "redcap_email",
-        "redcap_module_link_check_display"
+        "redcap_module_link_check_display",
+        "redcap_survey_page"
     ],
 
     "enable-every-page-hooks-on-system-pages": false,
@@ -61,11 +62,15 @@
     "no-csrf-pages": [
         "pages/inbound"
     ],
+    "no-auth-ajax-actions": [
+        "LookupPhoneNumbers"
+    ],
 
     "auth-ajax-actions": [
         "getConversations",
         "deleteConversations",
-        "refreshConversations"
+        "refreshConversations",
+        "LookupPhoneNumbers"
     ],
 
     "crons": [
@@ -178,6 +183,34 @@
             "name": "<b>Disable Incoming Twilio SMS</b><br><i>(optional)</i> If checked, module will not process inbound twilio messages",
             "required": true,
             "type": "checkbox"
+        },
+        {
+            "key": "collect-carrier-info",
+            "name": "<b>Collect Carrier Information</b><br><i>(optional)</i> If checked, when user fills phone number the module will make an API call to get phone carrier information and save name and type to specified fields.",
+            "required": false,
+            "type": "checkbox"
+        },
+        {
+            "key": "phone-carrier-name",
+            "name": "<b>Collect Carrier Name</b><br><i>(optional) If Specified the module will save phone number carrier name to this field</i> .",
+            "required": true,
+            "type": "field-list",
+            "branchingLogic": {
+                "field": "collect-carrier-info",
+                "op": "=",
+                "value": "true"
+            }
+        },
+        {
+            "key": "phone-carrier-type",
+            "name": "<b>Collect Carrier Name</b><br><i>(optional) If Specified the module will save phone number carrier type to this field</i> .",
+            "required": true,
+            "type": "field-list",
+            "branchingLogic": {
+                "field": "collect-carrier-info",
+                "op": "=",
+                "value": "true"
+            }
         },
         {
             "key": "enable-project-debug-logging",
