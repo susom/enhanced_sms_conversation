@@ -960,10 +960,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $line_type_intelligence = $tm->lookupPhoneNumber($phone_number);
                     if(!empty($line_type_intelligence)){
                         $data[\REDCap::getRecordIdField()]= $record_id;
-                        if($this->getProjectSetting('phone-carrier-name') && $this->getProjectSetting('phone-carrier-name') != ''){
+                        if(!empty($this->getProjectSetting('phone-carrier-name'))){
                             $data[$this->getProjectSetting('phone-carrier-name')] = $line_type_intelligence['carrier_name'];
                         }
-                        if($this->getProjectSetting('phone-carrier-type') && $this->getProjectSetting('phone-carrier-type') != ''){
+                        if(!empty($this->getProjectSetting('phone-carrier-type'))){
                             $data[$this->getProjectSetting('phone-carrier-type')] = $line_type_intelligence['type'];
                         }
                         $response = \REDCap::saveData($this->getProjectId(), 'json', json_encode(array($data)));
