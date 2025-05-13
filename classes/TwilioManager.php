@@ -214,21 +214,4 @@ class TwilioManager {
         return $this->TwilioClient;
     }
 
-    /**
-     * Perform a phone number lookup using Twilio API.
-     *
-     * @param string $phoneNumber The phone number to lookup (in E.164 format).
-     * @return array|null The lookup data, or null if the lookup fails.
-     */
-    public function lookupPhoneNumber($phoneNumber) {
-        try {
-            $lookup = $this->getTwilioClient()->lookups->v2->phoneNumbers($phoneNumber)
-                ->fetch(["fields" => "line_type_intelligence"]);
-
-            return $lookup->lineTypeIntelligence ?? null;
-        } catch (Exception $e) {
-            $this->module->emError('Twilio Lookup Error: ' . $e->getMessage());
-            return null;
-        }
-    }
 }
