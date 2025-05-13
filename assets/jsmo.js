@@ -65,15 +65,8 @@
             }).catch(function (err) {
                 console.log("Error", err);
             });
-        },
-
-        lookupPhoneNumber: function(number, record_id) {
-            module.ajax('LookupPhoneNumbers', {'phone_number' : number, 'record_id' : record_id}).then(function (response) {
-                console.log("LookupPhone RESPONSE", response);
-            }).catch(function (err) {
-                console.log("Error", err);
-            });
         }
+
 
 
     });
