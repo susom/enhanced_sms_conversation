@@ -775,8 +775,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         $originalPid = $_GET['pid'];
 
         // Attempt to use the single thread/multi-project cron strategy
-        foreach($this->getProjectsWithModuleEnabled() as $project_id){
-            // $this->emDebug("Running cron on pid $project_id");
+        foreach($this->framework->getProjectsWithModuleEnabled() as $project_id){
+             $this->emError("Running cronScanConversationState on pid $project_id");
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);

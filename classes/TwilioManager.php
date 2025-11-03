@@ -26,7 +26,7 @@ class TwilioManager {
     public function __construct($module, $project_id) {
         $this->module = $module;
         $this->project_id = $project_id;
-
+        $module->emError("Twilio Manager Constructor for project $project_id");
         $this->sid = $module->getProjectSetting('twilio-sid', $this->project_id);
         $this->token = $module->getProjectSetting('twilio-token',$this->project_id);
         $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$this->project_id));
