@@ -31,7 +31,13 @@ class TwilioManager {
         $this->token = $module->getProjectSetting('twilio-token',$this->project_id);
         $this->twilio_number = $module->formatNumber($module->getProjectSetting('twilio-number',$this->project_id));
 
-        if (empty($this->sid) | empty( $this->token) | empty( $this->twilio_number)) throw new ConfigSetupException("Missing Twilio setup - see external module config");
+        $module->emDebug("Twilio Manager Constructor");
+        $module->emDebug("SID" . $this->sid ? 'SET' : 'EMPTY');
+        $module->emDebug("TOKEN" . $this->token ? 'SET' : 'EMPTY');
+        $module->emDebug("TWILIO NUMBER: " . $this->twilio_number ? $this->twilio_number : 'EMPTY');
+
+        if (empty($this->sid) || empty( $this->token) || empty( $this->twilio_number))
+            throw new ConfigSetupException("Missing Twilio setup - see external module config");
     }
 
 
