@@ -211,13 +211,18 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      * @throws \Exception
      */
     public function getTwilioManager($project_id) {
-        if ($this->TwilioManager === null) {
-            $this->TwilioManager = new TwilioManager($this, $project_id);
-        } elseif (!empty($project_id) && $project_id != $this->TwilioManager->getProjectId()) {
-            // If the project_id is different, then make sure we have the correct Twilio Manager
-            $this->TwilioManager = new TwilioManager($this, $project_id);
+        try{
+            if ($this->TwilioManager === null) {
+                $this->TwilioManager = new TwilioManager($this, $project_id);
+            } elseif (!empty($project_id) && $project_id != $this->TwilioManager->getProjectId()) {
+                // If the project_id is different, then make sure we have the correct Twilio Manager
+                $this->TwilioManager = new TwilioManager($this, $project_id);
+            }
+            return $this->TwilioManager;
+        }catch (ConfigSetupException $e) {
+            REDCap::logEvent('EXCEPTION', "EM Config not setup. Check with admin.", "", null, null, $project_id);
+            $this->setProjectSetting('enabled', false, $project_id);
         }
-        return $this->TwilioManager;
     }
 
 
@@ -776,7 +781,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         // Attempt to use the single thread/multi-project cron strategy
         foreach($this->framework->getProjectsWithModuleEnabled() as $project_id){
-             $this->emError("Running cronScanConversationState on pid $project_id");
 
             // Load a Twilio Client
             $TM = $this->getTwilioManager($project_id);
