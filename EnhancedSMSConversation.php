@@ -642,9 +642,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function formatNumber($number, $type = "E164") {
         // REDCap stores numbers like '(650) 123-4567' -- convert to +16501234567
-        $this->emDebug("Formatting $number to $type");
+        $this->emError("Formatting $number to $type");
         $digits = preg_replace('/[^\d]/', '', $number);
-        $this->emDebug("Formatting $digits digits");
+        $this->emError("Formatting $digits digits");
         // $this->emDebug("INCOMING : $number");
         $output = "";
         if ($type== "E164") {
@@ -655,7 +655,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $output = $digits;
             }
             $output = "+".$output;
-            $this->emDebug("TYPE $output");
+            $this->emError("TYPE $output");
         } elseif ($type == "redcap") {
             if (strlen($digits) === 11 && left($digits,1,) == "1") {
                 // 16503803405 => 6503803405
@@ -670,9 +670,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         } elseif ($type == "digits") {
             $output = $digits;
         }
-        if ($output == "") $this->emDebug("Unable to parse $number to $digits into type $type");
+        if ($output == "") $this->emError("Unable to parse $number to $digits into type $type");
         // $this->emDebug("FORMATNUMBER $type $number => $output");
-        $this->emDebug(strval($output));
+        $this->emError(strval($output));
         return strval($output);
     }
 
