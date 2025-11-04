@@ -220,7 +220,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             }
             return $this->TwilioManager;
         }catch (ConfigSetupException $e) {
-            REDCap::logEvent('EXCEPTION', "EM Config not setup. Check with admin.", "", null, null, $project_id);
+            REDCap::logEvent('EXCEPTION', "Enhanced SMS Conversation is not configured and it will be disabled.", "", null, null, $project_id);
             $this->setProjectSetting('enabled', false, $project_id);
         }
     }
