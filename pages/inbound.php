@@ -54,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
             ]);
             $MH->save();
         } catch (\Exception $e) {
-            $module->emError("Error logging inbound message: " . $e->getMessage(), $_POST);
+            // Not $_POST: it holds the sender's number and message body.
+            $module->emError("Error logging inbound message: " . $e->getMessage() . " (MessageSid " . ($_POST['MessageSid'] ?? '-') . ")");
             die("Error processing message");
         }
         // Originally, we were thinking of using the inbound response to send the first reply, but due to the challenges

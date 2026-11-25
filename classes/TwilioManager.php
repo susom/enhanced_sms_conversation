@@ -141,7 +141,8 @@ class TwilioManager {
             if (!$result) $errors[] = $message;
         }
         if (!empty($errors)) {
-            $this->module->emDebug("Bulk Twilio message send failed", $errors);
+            // Not $errors: it holds the message texts that failed to send.
+            $this->module->emDebug("Bulk Twilio message send failed for " . count($errors) . " of " . count($messages) . " message(s)");
         }
     }
 
@@ -154,13 +155,11 @@ class TwilioManager {
      * @throws Exception
      */
     public function sendTwilioMessage($to_number, $message) {
-        $this->module->emDebug("sending to $to_number: ". $message);
+        // Never log $to_number or $message: participant phone number and message text.
+        $this->module->emDebug("sending an SMS (" . strlen((string) $message) . " chars)");
 
         // Format to number
         $to = $this->module->formatNumber($to_number);
-        if ($to !== $to_number) {
-            $this->module->emDebug("Formatted to number from $to_number to $to");
-        }
 
         try {
             $sms = $this->getTwilioClient()->messages->create(
