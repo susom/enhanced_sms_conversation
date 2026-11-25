@@ -291,7 +291,9 @@ class FormManager {
             'data'       => $data
         ]);
 
-        $this->module->emDebug("[$this->record_id] Saved $current_field for instance $this->instance as " . json_encode($result), $data);
+        // Not $data or the raw result: both carry the participant's answer.
+        $this->module->emDebug("[$this->record_id] Saved $current_field for instance $this->instance: "
+            . count($result['errors'] ?? []) . " error(s), ids " . json_encode($result['ids'] ?? []));
         return $result;
     }
 
@@ -429,12 +431,12 @@ class FormManager {
                 // Found a direct match to an array key
                 // Input is always a string, but numeric-like keys are made into ints when part of an array
                 // It appears isset coerces a numeric string to an int for comparison: so isset($a["1"]) is same as $a[1]
-                $this->module->emDebug("Matched $input to choice key for label $choices[$input]");
+                $this->module->emDebug("Matched the reply to a choice key of $this->current_field");
                 return $input;
             } else if (false !== $key = array_search($input, $choices)) {
                 // Try to find a value match in the choices array (e.g. yes for 1, yes)
                 // Found a match to a label of a choice
-                $this->module->emDebug("Matched $input to choice $key of $this->current_field");
+                $this->module->emDebug("Matched the reply to a choice label of $this->current_field");
                 return strval($key);
             } else {
                 // Try to use value aliases, e.g. a radio field type with 1,Yes | 0,No, | 2,Maybe - it isn't a strict
@@ -445,7 +447,7 @@ class FormManager {
                         // response is part of an alias group
                         foreach ($choices as $k => $v) {
                             if (in_array($v, $group)) {
-                                $this->module->emDebug("Response $input is in same group $type as choice value $v - setting value as $k");
+                                $this->module->emDebug("Reply is in alias group $type for a choice of $this->current_field");
                                 return strval($k);
                             }
                         }
@@ -453,7 +455,7 @@ class FormManager {
                 }
             }
 
-            $this->module->emDebug("We were unable to match $input to any of the choices: " . json_encode($choices));
+            $this->module->emDebug("We were unable to match the reply to any of the choices of $this->current_field");
             return false;
         } else {
             // TODO - validate TEXT!

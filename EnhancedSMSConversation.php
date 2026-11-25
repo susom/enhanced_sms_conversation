@@ -166,7 +166,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $this->emDebug("SAVED CS#" . $CS->getId() . " status " . $CS->getState());
 
             } else {
-                $this->emError("Not sure how we ended up here:", func_get_args());
+                // Not func_get_args(): those are the email's to/from/subject/body.
+                $this->emError("Not sure how we ended up here: redcap_email for project " . $this->getProjectId() . " was not handled");
             }
 
             // Cancel sending the REDCap Email
@@ -456,15 +457,15 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             if (empty($record_id)) {
                 // REDCap::logEvent("Received text from $from_number", "This number is not found in this project. Ignoring...");
-                throw new InboundException("Inbound message from $from_number cannot be matched with record in project " . $this->getProjectId());
+                throw new InboundException("Inbound message from an unregistered number cannot be matched with a record in project " . $this->getProjectId());
             }
 
             $body = trim($_POST['Body'] ?? '');
             //xxyjl: are 0s being considered empty here? try isset?
-            $this->emDebug("[$record_id] Inbound response: $body");
+            $this->emDebug("[$record_id] Inbound response received (" . strlen($body) . " chars)");
 
             if (!isset($body)) {
-                throw new InboundException("Empty body from $from_number, record $record_id -- skipping");
+                throw new InboundException("Empty body for record $record_id -- skipping");
             }
 
             // Check for Opt Out Reply - remove all non-alpha-num chars and lowercase
@@ -503,7 +504,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             $this->emDebug("Caught Inbound Exception: " . $e->getMessage());
             return "";
         } catch (\Exception $e) {
-            $this->emError("Exception thrown: " . $e->getMessage(), $e->getTraceAsString());
+            // No stack trace: its frames carry handleReply()'s cell number and SMS body.
+            $this->emError("Exception thrown: " . $e->getMessage() . " at " . basename($e->getFile()) . ":" . $e->getLine());
             return self::GENERIC_SMS_REPLY_ERROR;
         }
     }
@@ -529,7 +531,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         // Find ACTIVE conversations for this number
         if ($CS = ConversationState::getActiveConversationByNumber($this, $cell_number)) {
             $this->emDebug("Found CS#". $CS->getId() . " for Record $record_id / " . $CS->getInstance() .
-                " / $cell_number at field [" . $CS->getCurrentField() . "]");
+                " at field [" . $CS->getCurrentField() . "]");
 
             // according to state table this is the current question
             $current_field = $CS->getCurrentField();
@@ -539,7 +541,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 // If we do not have a current field, then something has gone wrong and we should be ending the survey
                 $CS->setState('ERROR');
                 $CS->addNote('Missing required current_field state.  Check change logs for details');
-                $this->emError("Invalid Conversation State", $CS);
+                $this->emError("Invalid Conversation State CS#" . $CS->getId());
                 $CS->Save();
 
                 $TM->sendTwilioMessage($cell_number, "We're sorry - but something went wrong on our end (#" . $CS->getId() . ")");
@@ -557,7 +559,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (false !== $response = $FM->validateResponse($inbound_body)) {
                 // POTENTIALLY VALID RESPONSE
                 if ($response !== $inbound_body) {
-                    $this->emDebug("Response for $current_field of $inbound_body has been mapped to $response");
+                    $this->emDebug("[$record_id] Response for $current_field has been mapped to a valid choice");
                 }
 
                 // Save the response to redcap?
@@ -566,7 +568,9 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
                 // TODO: Check for save validation warnings on text fields
                 if (!empty($result['warnings']) || !empty($result['errors'])) {
-                    $this->emError("Issues while saving $response to $current_field", $result);
+                    // saveData errors/warnings quote the value, so log counts only.
+                    $this->emError("[$record_id] Issues while saving the response to $current_field: "
+                        . count($result['errors'] ?? []) . " error(s), " . count($result['warnings'] ?? []) . " warning(s)");
                 }
 
                 $saveSuccessful = empty($result['errors']);
@@ -605,7 +609,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     }
                 } else {
                     // Error path during save - so we don't advance the current field
-                    $this->emError("There were errors while saving $response to record id $record_id for $current_field", $result['errors'], $FM->getFieldDict());
+                    $this->emError("There were " . count((array) ($result['errors'] ?? [])) . " error(s) while saving the response to record id $record_id for $current_field", $FM->getFieldDict());
                     REDCap::logEvent("Error saving response:  $response","Response in wrong format. Sending nonsense warning.","",$record_id, $CS->getEventId(),$this->getProjectId());
 
                     // Since we are not validating the min/max, using REDCap save to validate and warn?
@@ -633,7 +637,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
             if (!empty($no_open_conversation_message)) {
                 $TM->sendTwilioMessage($cell_number,$no_open_conversation_message);
             }
-            $this->emDebug("No ACTIVE conversation for this number $cell_number");
+            $this->emDebug("No ACTIVE conversation for record $record_id");
             REDCap::logEvent("Received text outside of conversation", "Text from $cell_number as $inbound_body ignored because there were no open surveys/conversations - replied with $no_open_conversation_message","",$record_id);
         }
     }
@@ -647,9 +651,8 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
      */
     public function formatNumber($number, $type = "E164") {
         // REDCap stores numbers like '(650) 123-4567' -- convert to +16501234567
-        $this->emError("Formatting $number to $type");
+        // Never log $number / $digits / $output: they are participant phone numbers.
         $digits = preg_replace('/[^\d]/', '', $number);
-        $this->emError("Formatting $digits digits");
         // $this->emDebug("INCOMING : $number");
         $output = "";
         if ($type== "E164") {
@@ -660,7 +663,6 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                 $output = $digits;
             }
             $output = "+".$output;
-            $this->emError("TYPE $output");
         } elseif ($type == "redcap") {
             if (strlen($digits) === 11 && left($digits,1,) == "1") {
                 // 16503803405 => 6503803405
@@ -675,9 +677,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
         } elseif ($type == "digits") {
             $output = $digits;
         }
-        if ($output == "") $this->emError("Unable to parse $number to $digits into type $type");
-        // $this->emDebug("FORMATNUMBER $type $number => $output");
-        $this->emError(strval($output));
+        if ($output == "") $this->emError("Unable to parse a phone number (" . strlen($digits) . " digits) into type $type");
         return strval($output);
     }
 
@@ -693,7 +693,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
         $number_in_redcap_format = $this->formatNumber($number, 'redcap');
         if (empty($number_in_redcap_format)) {
-            $this->emDebug("Invalid number: $number");
+            $this->emDebug("Invalid number (" . strlen((string) $number) . " chars)");
             $result = null;
         } else {
             // Try to look up record
@@ -725,10 +725,10 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
 
             // $this->emDebug("Phone Lookup Params:" , $params);
             $results = REDCap::getData($params);
-            $this->emDebug("Phone Lookup Result:" . json_encode($results));
+            $this->emDebug("Phone lookup matched " . count($results) . " record(s)");
 
             if (count($results) > 1) {
-                $this->emError("More than one record is registered with phone number $number: " . implode(",",array_keys($results)) . " -- taking first value");
+                $this->emError("More than one record is registered with the same phone number: " . implode(",",array_keys($results)) . " -- taking first value");
             }
             $result = empty($results) ? null : strval(key($results));
             // $this->emDebug("Query for $number", $result, $params);
@@ -843,7 +843,7 @@ class EnhancedSMSConversation extends \ExternalModules\AbstractExternalModule {
                     $CS->setReminderTs($newReminder);
                     $this->emDebug("CS Reminder: " . $CS->getReminderTs());
                 } else {
-                    $this->emDebug("This shouldn't happen", $timestamp, $CS);
+                    $this->emDebug("This shouldn't happen", $timestamp, "CS#" . $CS->getId());
                 }
                 $CS->save();
                 $this->emDebug("CS Reminder after save: " . $CS->getReminderTs());

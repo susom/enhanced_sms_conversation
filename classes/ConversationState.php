@@ -204,7 +204,7 @@ class ConversationState extends SimpleEmLogObject
             // TODO: Do we want to send a custom message for this scenario to the participant?
             //       for example. we could expire it instead...
             $this->module->emDebug("Forced to close conversation state " . $CS->getId() .
-                "  as ERROR because a new conversation is starting for $cell_number");
+                "  as ERROR because a new conversation is starting for the same cell number");
         }
     }
 
@@ -228,7 +228,7 @@ class ConversationState extends SimpleEmLogObject
         $objs = self::queryObjects($module, $type, $filter_clause, [$state, $cell_number]);
 
         $count = count($objs);
-        $module->emDebug("Found $count hits of type $type with filter $filter_clause from state $state and cell $cell_number");
+        $module->emDebug("Found $count hits of type $type with filter $filter_clause from state $state");
         if ($count == 0) {
             // None found, return false;
             $result = false;
@@ -236,7 +236,7 @@ class ConversationState extends SimpleEmLogObject
             $result = array_shift($objs);
             // Handle multiple active conversations if present
             foreach ($objs as $obj) {
-                $module->emError("Found more than one active conversation for $cell_number - this shouldn't happen.");
+                $module->emError("Found more than one active conversation (CS#" . $result->getId() . " and CS#" . $obj->getId() . ") for the same cell number - this shouldn't happen.");
                 $module->emDebug("Updating state to error for object " . $obj->getId());
                 $obj->setValue('state', 'ERROR');
                 $obj->setValue('notes', "Multiple active conversations for $cell_number");
