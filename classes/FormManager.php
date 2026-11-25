@@ -345,7 +345,8 @@ class FormManager {
             false, $this->project_id, false, $this->form,
             1,false,false,$this->form));
         $strip = trim(strip_tags($pipe));
-        $this->module->emDebug("Piped as: [$strip]");
+        // Not the piped text: piping can insert participant values.
+        $this->module->emDebug("Piped text is " . strlen($strip) . " chars");
         return $strip;
     }
 
@@ -447,7 +448,8 @@ class FormManager {
                         // response is part of an alias group
                         foreach ($choices as $k => $v) {
                             if (in_array($v, $group)) {
-                                $this->module->emDebug("Reply is in alias group $type for a choice of $this->current_field");
+                                // Not $type: the alias group name (Yes-like / No-like ...) reveals the answer.
+                                $this->module->emDebug("Reply matched an alias for a choice of $this->current_field");
                                 return strval($k);
                             }
                         }

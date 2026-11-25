@@ -141,7 +141,8 @@ class TwilioManager {
             if (!$result) $errors[] = $message;
         }
         if (!empty($errors)) {
-            $this->module->emDebug("Bulk Twilio message send failed", $errors);
+            // Not $errors: it holds the message texts that failed to send.
+            $this->module->emDebug("Bulk Twilio message send failed for " . count($errors) . " of " . count($messages) . " message(s)");
         }
     }
 

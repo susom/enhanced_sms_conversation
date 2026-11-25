@@ -18,6 +18,14 @@ Several log lines sent participant phone numbers, SMS text and survey answers to
 
 Each line now logs ids, counts and field names instead of the value: record id, `CS#` id, MessageSid, character and error counts. No behavior changes: formatting, lookups and replies work as before.
 
+## Scope
+
+This covers the emLogger calls listed above, including the outbound paths fixed after code review: piped question text in `FormManager::pipe()`, the failed bulk-send list in `TwilioManager`, and the alias group name.
+
+Outbound sending to a real number was not exercised locally: it needs Twilio. Those lines were changed by review.
+
+Other log sinks are outside this change. In particular, `REDCap::logEvent` and the module's own message-history log table still store numbers and message text by design.
+
 ## How it was reproduced and verified (local, REDCap 17.5.9, PID 271)
 
 A Twilio-style inbound POST went to the no-auth webhook (`pages/inbound`) from a fake `+1 650 555-xxxx` number. The new lines in `enhanced_sms_conversation.json` were then searched for the number and the body.
