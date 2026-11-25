@@ -245,7 +245,8 @@ class SimpleEmLogObject
                 if (in_array($k, $this->dirty_parameters)) {
                     // Update/Insert parameter
                     if ($this->validateParameter($k, $v)) {
-                        $this->module->emDebug("Updating parameter $k to $v");
+                        // Not $v: parameters include cell_number and notes that can carry it.
+                        $this->module->emDebug("Updating parameter $k");
                         // UPSERT THE VALUE
                         $sql = "INSERT INTO redcap_external_modules_log_parameters (log_id,name,value) " .
                             " VALUES (?,?,?) ON DUPLICATE KEY UPDATE value=?";
@@ -253,7 +254,7 @@ class SimpleEmLogObject
                         $params = [$this->log_id, $k, $v, $v];
                         $result = $this->module->query($sql, $params);
                         if (!$result) {
-                            $this->module->emDebug("QUERY FAILED: ", $sql, $params, $result);
+                            $this->module->emDebug("QUERY FAILED updating parameter $k for log id $this->log_id: " . db_error());
                         }
 
                         $this->logChange(['update', $k, $v]);

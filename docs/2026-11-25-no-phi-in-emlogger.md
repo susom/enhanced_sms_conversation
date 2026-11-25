@@ -27,4 +27,6 @@ A Twilio-style inbound POST went to the no-auth webhook (`pages/inbound`) from a
 | `main` before the fix | 7 (6 at ERROR, from `formatNumber`) |
 | this branch | 0 |
 
+A second check covers `SimpleEmLogObject::save()`. It saves a ConversationState, updates it with a note that embeds a fake number (as `closeExistingConversations()` does), and then deletes it. With project debug on, the parameter-update line logged the number: 1 line before the follow-up commit, 0 after.
+
 PID 271 has inbound SMS disabled. It was switched on only for the test and switched back right after. The script is `emlogger-phi-review/e2e/twilio-inbound.sh` in the REDCap EM workspace.
